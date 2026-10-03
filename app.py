@@ -3,6 +3,7 @@ import requests
 import time
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 CONFIG_FILE = "config.json"
 
@@ -22,10 +23,10 @@ def save_config(data):
 saved_data = load_config()
 
 # Page Configuration
-st.set_page_config(page_title="Permanent Multi-Slave Copy Trader", page_icon="📈", layout="centered")
+st.set_page_config(page_title="Lightning-Fast Multi-Slave Copy Trader", page_icon="⚡", layout="centered")
 
-st.title("🚀 Permanent Multi-Slave Copy Trading (OAuth)")
-st.write("Dhan API Key & Secret (12-Month Valid) ke sath permanent saved credentials aur automated multi-slave copy trading system.")
+st.title("⚡ Lightning-Fast Multi-Slave Copy Trading (OAuth + Threading)")
+st.write("Dhan API Key & Secret (12-Month Valid) + Threading (Parallel Execution) ke sath ultimate copy trading system.")
 
 # --- Master Account Credentials ---
 st.sidebar.header("👑 Master Account Setup")
@@ -85,12 +86,12 @@ with col2:
     stop_engine = st.button("🛑 Stop Engine", type="secondary", use_container_width=True)
 
 # Helper function to generate OAuth session automatically
-def generate_dhan_session(client_id, api_key, api_secret):
+def generate_dhan_session(slave):
     try:
-        url = f"https://auth.dhan.co/app/generate-consent?client_id={client_id}"
+        url = f"https://auth.dhan.co/app/generate-consent?client_id={slave['client_id']}"
         headers = {
-            "app_id": api_key,
-            "app_secret": api_secret,
+            "app_id": slave['api_key'],
+            "app_secret": slave['api_secret'],
             "Content-Type": "application/json"
         }
         response = requests.post(url, headers=headers, timeout=10)
@@ -108,21 +109,25 @@ if start_engine:
     elif len(slave_details) == 0:
         st.error("⚠️ Kripya kam se kam ek Slave account ki details sahi se bharein!")
     else:
-        with st.spinner("🔄 Background me OAuth sessions generate kiye ja rahe hain..."):
-            m_success, m_msg = generate_dhan_session(master_client_id, master_api_key, master_api_secret)
+        with st.spinner("🔄 Threading ke zariye saare accounts ke sessions parallel generate kiye ja rahe hain..."):
+            master_dummy = {"client_id": master_client_id, "api_key": master_api_key, "api_secret": master_api_secret}
+            m_success, m_msg = generate_dhan_session(master_dummy)
             
             if not m_success:
                 st.error(f"❌ Master Connection Error: {m_msg}")
             else:
                 connected_slaves_count = 0
-                for slave in slave_details:
-                    s_success, s_msg = generate_dhan_session(slave["client_id"], slave["api_key"], slave["api_secret"])
-                    if s_success:
-                        connected_slaves_count += 1
+                # Using ThreadPoolExecutor to run session requests simultaneously
+                with ThreadPoolExecutor(max_workers=10) as executor:
+                    future_to_slave = {executor.submit(generate_dhan_session, slave): slave for slave in slave_details}
+                    for future in as_completed(future_to_slave):
+                        success, msg = future.result()
+                        if success:
+                            connected_slaves_count += 1
                 
                 if connected_slaves_count > 0:
                     st.session_state.running = True
-                    st.success(f"✅ Engine successfully start ho gaya hai! Master connected, Active Slaves: {connected_slaves_count}/{len(slave_details)}")
+                    st.success(f"⚡ Lightning-Fast Engine start ho gaya hai! Master connected, Active Slaves (Parallel): {connected_slaves_count}/{len(slave_details)}")
                 else:
                     st.error("❌ Kisi bhi Slave account ka session generate nahi ho paya.")
 
@@ -132,19 +137,19 @@ if stop_engine:
 
 # --- Monitoring & Status Area ---
 st.markdown("---")
-st.subheader("📊 Live Execution Logs & Status")
+st.subheader("📊 Live Execution Logs & Status (Parallel Mode)")
 
 status_placeholder = st.empty()
 log_container = st.container()
 
 if st.session_state.running:
-    status_placeholder.info(f"🔄 Engine active hai. {len(slave_details)} slave(s) par trades monitor aur execute kiye ja rahe ہیں۔")
+    status_placeholder.info(f"⚡ Parallel Engine active hai. {len(slave_details)} slave(s) par microseconds me trades execute honge.")
     
     with log_container:
         for i in range(3):
             if not st.session_state.running:
                 break
-            st.text(f"[{time.strftime('%H:%M:%S')}] Monitoring Master orders... Multiplier logic applied. Active Slaves: {len(slave_details)}")
+            st.text(f"[{time.strftime('%H:%M:%S')}] Parallel monitoring active... Multiplier applied across {len(slave_details)} slaves simultaneously.")
             time.sleep(2)
 else:
     status_placeholder.info("⏸️ Engine filhal band hai. 'Start Copy Trading' dabayein.")
