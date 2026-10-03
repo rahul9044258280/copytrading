@@ -58,7 +58,7 @@ def save_config(data):
 saved_data = load_config()
 
 # Page Configuration
-st.set_page_config(page_title="Groww Pro | Multi-Slave Terminal", page_icon="📈", layout="wide")
+st.set_page_config(page_title="Groww Pro | Centralized Terminal", page_icon="📈", layout="wide")
 
 # --- Groww Style + Cinematic Background CSS ---
 st.markdown("""
@@ -72,7 +72,6 @@ st.markdown("""
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
-    /* Groww Style Glassmorphic Containers */
     div.block-container {
         padding-top: 2rem;
     }
@@ -85,11 +84,6 @@ st.markdown("""
         padding: 18px 22px;
         border-radius: 12px;
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        transition: transform 0.2s ease;
-    }
-    div[data-testid="stMetric"]:hover {
-        border-color: rgba(0, 208, 156, 0.4);
-        transform: translateY(-2px);
     }
     div[data-testid="stMetric"] label {
         color: #9ca3af !important;
@@ -130,14 +124,8 @@ st.markdown("""
         background-color: rgba(239, 68, 68, 0.3) !important;
     }
 
-    /* Sidebar Styling */
-    [data-testid="stSidebar"] {
-        background-color: #0f172a;
-        border-right: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
     /* Headers */
-    h1, h2, h3 {
+    h1, h2, h3, h4 {
         color: #ffffff;
         font-weight: 700;
         letter-spacing: -0.5px;
@@ -153,10 +141,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Top Header Navbar (Groww Header Style) ---
+# --- Top Header Navbar ---
 nav1, nav2, nav3 = st.columns([3, 1, 1])
 with nav1:
-    st.markdown("### 📈 GROWW TERMINAL <span style='color: #00D09C; font-size: 1rem;'>PRO ENGINE</span>", unsafe_allow_html=True)
+    st.markdown("### 📈 GROWW TERMINAL <span style='color: #00D09C; font-size: 1rem;'>CENTRALIZED ENGINE</span>", unsafe_allow_html=True)
 with nav2:
     st.metric(label="Market Feed", value="LIVE 🟢")
 with nav3:
@@ -164,29 +152,52 @@ with nav3:
 
 st.markdown("---")
 
-# --- Sidebar Configuration Panel ---
-st.sidebar.markdown("### ⚡ TERMINAL SETTINGS")
+# Session State Initialization
+if 'running' not in st.session_state:
+    st.session_state.running = False
+if 'processed_order_ids' not in st.session_state:
+    st.session_state.processed_order_ids = set()
 
-with st.sidebar.expander("👑 Master Account Setup", expanded=True):
-    m_saved = saved_data.get("master", {})
-    master_client_id = st.text_input("Master Client ID", value=m_saved.get("client_id", ""))
-    master_api_key = st.text_input("Master API Key", value=m_saved.get("api_key", ""))
-    master_api_secret = st.text_input("Master API Secret", type="password", value=m_saved.get("api_secret", ""))
+# --- Main Dashboard Tabs (Settings moved to center tab) ---
+tab_config, tab_dashboard, tab_logs, tab_risk = st.tabs(["⚙️ Terminal Setup & Settings", "📊 Live Trading Dashboard", "📜 Order Audit Logs", "🛡️️ Risk Management"])
 
-with st.sidebar.expander("🔗 Slave Fleet Setup", expanded=False):
-    saved_slaves = saved_data.get("slaves", [])
-    default_num = max(len(saved_slaves), 1)
-    num_slaves = st.number_input("Total Slaves", min_value=1, max_value=20, value=default_num, step=1)
-
+# --- TAB 1: CONFIGURATION & SETTINGS (Bich me shift kiya gaya hai) ---
+with tab_config:
+    st.markdown("#### **Master & Slave Account Configuration**")
+    st.write("Yahan aap apne Master aur Slave accounts ki API details aur multipliers set karke permanent save kar sakte hain.")
+    
+    col_m, col_s = st.columns(2)
+    
+    with col_m:
+        st.markdown("##### 👑 Master Account Setup")
+        m_saved = saved_data.get("master", {})
+        master_client_id = st.text_input("Master Client ID", value=m_saved.get("client_id", ""))
+        master_api_key = st.text_input("Master API Key", value=m_saved.get("api_key", ""))
+        master_api_secret = st.text_input("Master API Secret", type="password", value=m_saved.get("api_secret", ""))
+    
+    with col_s:
+        st.markdown("##### 🔗 Slave Fleet Setup")
+        saved_slaves = saved_data.get("slaves", [])
+        default_num = max(len(saved_slaves), 1)
+        num_slaves = st.number_input("Total Active Slaves", min_value=1, max_value=20, value=default_num, step=1)
+    
     slave_details = []
+    st.markdown("---")
+    st.markdown("##### **Detailed Slave Fleet Parameters**")
+    
+    # Grid inputs for slaves
     for i in range(1, int(num_slaves) + 1):
-        st.sidebar.markdown(f"**Slave Unit {i}**")
         s_saved = saved_slaves[i-1] if (i-1) < len(saved_slaves) else {}
         
-        s_client_id = st.sidebar.text_input(f"Client ID {i}", value=s_saved.get("client_id", ""), key=f"s_client_{i}")
-        s_api_key = st.sidebar.text_input(f"API Key {i}", value=s_saved.get("api_key", ""), key=f"s_key_{i}")
-        s_api_secret = st.sidebar.text_input(f"API Secret {i}", type="password", value=s_saved.get("api_secret", ""), key=f"s_sec_{i}")
-        s_multiplier = st.sidebar.number_input(f"Multiplier {i}", min_value=0.1, max_value=10.0, value=float(s_saved.get("multiplier", 1.0)), step=0.5, key=f"s_mult_{i}")
+        sc1, sc2, sc3, sc4 = st.columns(4)
+        with sc1:
+            s_client_id = st.text_input(f"Slave {i} Client ID", value=s_saved.get("client_id", ""), key=f"s_client_{i}")
+        with sc2:
+            s_api_key = st.text_input(f"Slave {i} API Key", value=s_saved.get("api_key", ""), key=f"s_key_{i}")
+        with sc3:
+            s_api_secret = st.text_input(f"Slave {i} API Secret", type="password", value=s_saved.get("api_secret", ""), key=f"s_sec_{i}")
+        with sc4:
+            s_multiplier = st.number_input(f"Multiplier {i}", min_value=0.1, max_value=10.0, value=float(s_saved.get("multiplier", 1.0)), step=0.5, key=f"s_mult_{i}")
         
         if s_client_id and s_api_key and s_api_secret:
             slave_details.append({
@@ -197,31 +208,34 @@ with st.sidebar.expander("🔗 Slave Fleet Setup", expanded=False):
                 "status": "Idle",
                 "last_action": "Monitoring"
             })
-        st.sidebar.markdown("---")
+        st.markdown("---")
 
-if st.sidebar.button("💾 Save Settings Permanently", type="primary", use_container_width=True):
-    config_data = {
-        "master": {
-            "client_id": master_client_id,
-            "api_key": master_api_key,
-            "api_secret": master_api_secret
-        },
-        "slaves": slave_details
-    }
-    save_config(config_data)
-    st.sidebar.success("✅ Credentials saved securely!")
+    if st.button("💾 Save All Settings Permanently", type="primary", use_container_width=True):
+        config_data = {
+            "master": {
+                "client_id": master_client_id,
+                "api_key": master_api_key,
+                "api_secret": master_api_secret
+            },
+            "slaves": slave_details
+        }
+        save_config(config_data)
+        st.success("✅ Saari configuration details successfully save ho gayi hain!")
 
-# Session State
-if 'running' not in st.session_state:
-    st.session_state.running = False
-if 'processed_order_ids' not in st.session_state:
-    st.session_state.processed_order_ids = set()
+# If config not saved in session/run, load from saved_data for execution tabs
+if 'master_client_id' not in locals():
+    m_saved = saved_data.get("master", {})
+    master_client_id = m_saved.get("client_id", "")
+    master_api_key = m_saved.get("api_key", "")
+    master_api_secret = m_saved.get("api_secret", "")
 
-# --- Main Dashboard Tabs ---
-tab1, tab2, tab3 = st.tabs(["📊 Portfolio & Execution", "📜 Order Audit Logs", "🛡️ Risk Management"])
+if 'slave_details' not in locals():
+    saved_slaves = saved_data.get("slaves", [])
+    slave_details = saved_slaves
 
-with tab1:
-    st.markdown("#### **Control & Operations Hub**")
+# --- TAB 2: LIVE TRADING DASHBOARD ---
+with tab_dashboard:
+    st.markdown("#### **Control & Operations Center**")
     
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -233,7 +247,6 @@ with tab1:
 
     st.markdown("---")
     
-    # Groww Style KPI metrics grid
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Engine State", "RUNNING" if st.session_state.running else "STANDBY")
     k2.metric("Connected Slaves", f"{len(slave_details)} Units")
@@ -268,7 +281,7 @@ def execute_square_off_worker(account):
     except Exception as e:
         return False, f"{account['client_id']}: {str(e)}"
 
-if emergency_kill:
+if 'emergency_kill' in locals() and emergency_kill:
     st.session_state.running = False
     st.error("🚨 EMERGENCY KILL SWITCH TRIGGERED! Sabhi accounts ki positions square-off ki ja rahi hain...")
     
@@ -284,9 +297,9 @@ if emergency_kill:
                 
     st.success(f"🚨 Kill Switch executed successfully across {success_count} account(s)!")
 
-if start_engine:
+if 'start_engine' in locals() and start_engine:
     if not master_client_id or not master_api_key or not master_api_secret:
-        st.error("⚠️ Master credentials bharna anivarya hai!")
+        st.error("⚠️ Master credentials bharna anivarya hai! Setup tab me details check karein.")
     elif len(slave_details) == 0:
         st.error("⚠️ Kam se kam ek Slave account jodein!")
     else:
@@ -310,7 +323,7 @@ if start_engine:
                 else:
                     st.error("❌ Kisi bhi Slave account ka session verify nahi ho paya.")
 
-if stop_engine:
+if 'stop_engine' in locals() and stop_engine:
     st.session_state.running = False
     st.warning("⚠️ Engine manually pause kar diya gaya hai.")
 
@@ -327,7 +340,7 @@ def update_status_table(slaves):
         })
     return pd.DataFrame(table_data)
 
-with tab1:
+with tab_dashboard:
     if st.session_state.running:
         df_status = update_status_table(slave_details)
         status_table_placeholder.dataframe(df_status, use_container_width=True)
@@ -344,7 +357,8 @@ with tab1:
         status_table_placeholder.dataframe(df_status, use_container_width=True)
         st.info("⏸️ Engine stand-by mode me hai. Start button dabayein.")
 
-with tab2:
+# --- TAB 3: ORDER AUDIT LOGS ---
+with tab_logs:
     st.markdown("#### **Audit Logs & Execution History**")
     try:
         conn = sqlite3.connect(DB_FILE)
@@ -365,7 +379,8 @@ with tab2:
     except Exception as e:
         st.warning(f"Database error: {e}")
 
-with tab3:
+# --- TAB 4: RISK MANAGEMENT ---
+with tab_risk:
     st.markdown("#### **Risk Controls & Limits**")
     r1, r2 = st.columns(2)
     with r1:
