@@ -20,7 +20,7 @@ if master_token: st.session_state.m_token = master_token
 
 # --- Multiple Slave Accounts Setup ---
 st.sidebar.header("🔗 Slave Accounts Setup")
-num_slaves = st.sidebar.number_input("Kitne Slave Accounts jodne hain?", min_value=1, max_value=5, value=1, step=1)
+num_slaves = st.sidebar.number_input("Kitne Slave Accounts jodne hain?", min_value=1, max_value=500, value=1, step=1)
 
 slave_details = []
 
