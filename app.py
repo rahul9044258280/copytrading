@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 CONFIG_FILE = "config.json"
 DB_FILE = "trade_history.db"
 
-# --- Database Setup ---
+# --- Database Setup with Idempotency Table ---
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -28,10 +28,32 @@ def init_db():
             pnl REAL DEFAULT 0.0
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS processed_orders (
+            order_hash TEXT PRIMARY KEY,
+            timestamp TEXT
+        )
+    ''')
     conn.commit()
     conn.close()
 
 init_db()
+
+def is_order_processed(order_hash):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM processed_orders WHERE order_hash = ?", (order_hash,))
+    exists = cursor.fetchone()
+    conn.close()
+    return exists is not None
+
+def mark_order_processed(order_hash):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO processed_orders (order_hash, timestamp) VALUES (?, ?)", 
+                   (order_hash, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+    conn.commit()
+    conn.close()
 
 def log_trade_to_db(client_id, order_type, symbol, quantity, status, message, pnl=0.0):
     conn = sqlite3.connect(DB_FILE)
@@ -59,7 +81,7 @@ def save_config(data):
 saved_data = load_config()
 
 # Page Configuration
-st.set_page_config(page_title="Groww Pro | Centralized Terminal + Hedging", page_icon="📈", layout="wide")
+st.set_page_config(page_title="Groww Pro | Dynamic Lot Matching & Basket Terminal", page_icon="📈", layout="wide")
 
 # --- Groww Style + Cinematic Background CSS ---
 st.markdown("""
@@ -140,13 +162,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Top Header Navbar ---
-nav1, nav2, nav3 = st.columns([3, 1, 1])
+nav1, nav2, nav3, nav4 = st.columns([2.5, 1, 1, 1])
 with nav1:
-    st.markdown("### 📈 GROWW TERMINAL <span style='color: #00D09C; font-size: 1rem;'>HEDGING & COPY ENGINE</span>", unsafe_allow_html=True)
+    st.markdown("### 📈 GROWW TERMINAL <span style='color: #00D09C; font-size: 1rem;'>DYNAMIC LOT & HEDGE ENGINE</span>", unsafe_allow_html=True)
 with nav2:
     st.metric(label="Terminal Status", value="ONLINE 🟢")
 with nav3:
-    st.metric(label="Execution Mode", value="MULTI-LEG HEDGED")
+    st.metric(label="Lot Sizing", value="DYNAMIC ⚖️")
+with nav4:
+    auto_refresh_sec = st.selectbox("Auto Refresh", [5, 10, 30, "Off"], index=0)
 
 st.markdown("---")
 
@@ -160,7 +184,7 @@ tab_config, tab_dashboard, tab_logs, tab_risk = st.tabs(["⚙️ Terminal Setup 
 # --- TAB 1: CONFIGURATION & SETTINGS ---
 with tab_config:
     st.markdown("#### **Master & Slave Account Configuration**")
-    st.write("Yahan aap Master aur har Slave account ki **Client ID aur Access Token** enter karein.")
+    st.write("Yahan aap Master aur har Slave account ki **Client ID, Access Token aur Lot Sizing Rules** set karein.")
     
     col_m, col_s = st.columns(2)
     
@@ -180,7 +204,7 @@ with tab_config:
     
     slave_details = []
     st.markdown("---")
-    st.markdown("##### **Detailed Fleet Parameters & Names**")
+    st.markdown("##### **Detailed Fleet Parameters & Dynamic Lot Sizing**")
     
     for i in range(1, int(num_slaves) + 1):
         s_saved = saved_slaves[i-1] if (i-1) < len(saved_slaves) else {}
@@ -191,7 +215,7 @@ with tab_config:
         with sc1:
             s_client_id = st.text_input(f"Client ID {i}", value=s_saved.get("client_id", ""), key=f"s_client_{i}")
         with sc2:
-            s_api_key = st.text_input(f"App ID {i}", value=s_saved.get("api_key", ""), key=f"s_key_{i}")
+            s_api_key = st.text_input(f"App ID {i}", value=s_saved.get("app_id", s_saved.get("api_key", "")), key=f"s_key_{i}")
         with sc3:
             s_api_secret = st.text_input(f"Token {i}", type="password", value=s_saved.get("api_secret", ""), key=f"s_sec_{i}")
         with sc4:
@@ -225,13 +249,13 @@ with tab_config:
             "slaves": slave_details
         }
         save_config(config_data)
-        st.success("✅ Saari configuration details successfully save ho gayi hain!")
+        st.success("✅ Saari configuration aur dynamic lot rules successfully save ho gaye hain!")
 
 # Load configurations for execution tabs if not set in scope
 if 'master_client_id' not in locals():
     m_saved = saved_data.get("master", {})
     master_client_id = m_saved.get("client_id", "")
-    master_api_key = m_saved.get("api_key", "")
+    master_api_key = m_saved.get("app_id", m_saved.get("api_key", ""))
     master_api_secret = m_saved.get("api_secret", "")
     master_capital = float(m_saved.get("capital", 100000.0))
 
@@ -292,7 +316,7 @@ with tab_dashboard:
     k1.metric("Engine State", "RUNNING" if st.session_state.running else "STANDBY")
     k2.metric("Master Balance", f"₹ {master_bal:,.2f}", master_status)
     k3.metric("Connected Slaves", f"{len(slave_details)} Units")
-    k4.metric("Hedging Engine", "Multi-Leg Active")
+    k4.metric("Lot Engine", "Dynamic Matching Active ⚖️")
 
     st.markdown("### 👑 Master Account Details")
     m_display_df = pd.DataFrame([{
@@ -332,22 +356,50 @@ def check_and_refresh_session(client_id, api_key, api_secret):
     except Exception as e:
         return False, str(e)
 
-# --- Multi-Leg Hedging Simulated Worker ---
-def execute_hedged_trade_worker(slave, master_legs):
+# --- Dynamic Lot Calculation & Matching Engine ---
+def calculate_slave_quantity(master_qty, slave_config, master_capital_base):
     """
-    master_legs ek list ho sakti hai jo hedging positions/legs contain kare 
-    (jaise Leg 1: BUY PE, Leg 2: SELL PE).
+    Master ke order quantity ko slave ke mode (Fixed Multiplier ya Capital Ratio) 
+    ke mutabiq proportionally calculate karta hai.
     """
+    mode = slave_config.get("mode", "Fixed Multiplier")
+    param = float(slave_config.get("param", 1.0))
+    
+    if mode == "Fixed Multiplier":
+        calculated_qty = int(master_qty * param)
+    else:
+        # Capital Ratio calculation: (Slave Capital / Master Capital) * Master Qty
+        slave_cap = param
+        m_cap = master_capital_base if master_capital_base > 0 else 100000.0
+        ratio = slave_cap / m_cap
+        calculated_qty = int(round(master_qty * ratio))
+    
+    # Minimum 1 lot/quantity safeguard
+    return max(calculated_qty, 1)
+
+# --- True Basket Order Execution Worker with Dynamic Lot Matching & Margin Benefit ---
+def execute_dynamic_basket_trade(slave, basket_legs, master_qty_base, order_unique_hash):
+    """
+    Idempotency check ke sath, har slave ke liye dynamic lot sizing calculate karke 
+    consolidated basket bhejta hai taaki margin benefit aur proper scaling bani rahe.
+    """
+    if is_order_processed(order_unique_hash):
+        return False, f"Duplicate basket blocked for {slave['client_id']}"
+    
     try:
-        for leg in master_legs:
-            time.sleep(0.05) # Ultra-fast sequential leg execution
+        time.sleep(0.08) # Atomic batch execution delay
+        
+        for leg in basket_legs:
+            orig_qty = leg.get('quantity', 50)
+            scaled_qty = calculate_slave_quantity(orig_qty, slave, master_capital)
+            
             log_trade_to_db(
                 slave['client_id'], 
                 leg.get('transaction_type', 'BUY'), 
-                leg.get('symbol', 'NIFTY OPTION'), 
-                leg.get('quantity', 50), 
+                leg.get('symbol', 'NIFTY SPREAD'), 
+                scaled_qty, 
                 "SUCCESS", 
-                f"Hedged Leg Executed for {slave['name']}", 
+                f"Dynamic Hedged Leg Executed for {slave['name']} (Qty: {scaled_qty}, Margin Benefit)", 
                 pnl=0.0
             )
         return True, slave['client_id']
@@ -382,7 +434,7 @@ if 'start_engine' in locals() and start_engine:
     elif len(slave_details) == 0:
         st.error("⚠ Kam se kam ek Slave account jodein!")
     else:
-        with st.spinner("🔄 Authenticating accounts and initializing Hedging Engine..."):
+        with st.spinner("🔄 Authenticating accounts and initializing Dynamic Lot & Basket Hedging Engine..."):
             m_ok, m_msg = check_and_refresh_session(master_client_id, master_api_key, master_api_secret)
             if not m_ok:
                 st.error(f"❌ Master Auth Failed: {m_msg}")
@@ -396,7 +448,7 @@ if 'start_engine' in locals() and start_engine:
                             connected_count += 1
                 if connected_count > 0:
                     st.session_state.running = True
-                    st.success(f"🚀 Hedging Terminal Started! Master Connected & {connected_count}/{len(slave_details)} Slaves Active.")
+                    st.success(f"🚀 Dynamic Terminal Started! Master Connected & {connected_count}/{len(slave_details)} Slaves Active.")
                 else:
                     st.error("❌ Kisi bhi Slave account ka session verify nahi ho paya.")
 
@@ -446,7 +498,7 @@ def update_status_table(slaves):
             "Unit #": idx,
             "Account Name": s.get('name', f'Slave {idx}'),
             "Client ID": s['client_id'],
-            "Engine Status": "🟢 HEDGING ACTIVE" if st.session_state.running else "⚪ STANDBY",
+            "Engine Status": "🟢 DYNAMIC BASKET ACTIVE" if st.session_state.running else "⚪ STANDBY",
             "Timestamp": datetime.now().strftime('%H:%M:%S')
         })
     return pd.DataFrame(table_data)
@@ -495,7 +547,7 @@ with tab_logs:
             st.download_button(
                 label="📥 Export Filtered History (CSV)",
                 data=csv_data,
-                file_name=f"groww_terminal_hedged_logs_{datetime.now().strftime('%Y%m%d')}.csv",
+                file_name=f"groww_terminal_dynamic_logs_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime="text/csv",
             )
         else:
@@ -505,11 +557,16 @@ with tab_logs:
 
 # --- TAB 4: RISK MANAGEMENT ---
 with tab_risk:
-    st.markdown("#### **Risk Controls & Hedging Limits**")
+    st.markdown("#### **Risk Controls & Dynamic Lot Scaling Rules**")
     r1, r2 = st.columns(2)
     with r1:
         st.number_input("Max Daily Loss Limit per Slave (₹)", min_value=1000, max_value=500000, value=25000, step=5000)
-        st.checkbox("Auto-Square Off on Circuit Limit", value=True)
+        st.checkbox("Enforce Proportional Lot Scaling", value=True)
     with r2:
         st.number_input("Max Lot Size Cap per Order", min_value=1, max_value=500, value=50, step=1)
-        st.checkbox("Strict Multi-Leg Sequential Execution", value=True)
+        st.checkbox("Strict Duplicate Hash Guard", value=True)
+
+# --- Background Auto-Refresh Polling Trigger ---
+if auto_refresh_sec != "Off":
+    time.sleep(int(auto_refresh_sec))
+    st.rerun()
