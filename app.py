@@ -239,10 +239,12 @@ if 'slave_details' not in locals():
     saved_slaves = saved_data.get("slaves", [])
     slave_details = saved_slaves
 
-# --- Helper to fetch live Dhan fund balance ---
+# --- Strict Live Dhan Fund Balance Fetcher ---
 def fetch_dhan_fund_balance(client_id, api_key, api_secret):
+    if not client_id or not api_secret:
+        return 0.0
     try:
-        url = f"https://api.dhan.co/fundlimit"
+        url = "https://api.dhan.co/fundlimit"
         headers = {
             "client-id": client_id,
             "access-token": api_secret,
@@ -251,10 +253,16 @@ def fetch_dhan_fund_balance(client_id, api_key, api_secret):
         response = requests.get(url, headers=headers, timeout=5)
         if response.status_code == 200:
             data = response.json()
-            return float(data.get("availabelBalance", 125430.50))
-    except:
+            # Dhan API returns available balance fields; checking standard keys
+            for key in ["availabelBalance", "availableBalance", "panAvailableBalance", "net"]:
+                if key in data and data[key] is not None:
+                    return float(data[key])
+            # If JSON contains a list or specific structure
+            if isinstance(data, dict):
+                return float(data.get("data", {}).get("availabelBalance", data.get("data", {}).get("availableBalance", 0.0)))
+    except Exception as e:
         pass
-    return 150000.0
+    return 0.0  # Returns 0.0 if API fails or credentials are invalid so wrong fake balance isn't shown
 
 # --- TAB 2: LIVE TRADING DASHBOARD & SLAVE FINANCIAL REPORT ---
 with tab_dashboard:
@@ -262,7 +270,7 @@ with tab_dashboard:
     
     c1, c2, c3 = st.columns(3)
     with c1:
-        start_engine = st.button("▶️️ START COPY TRADING", type="primary", use_container_width=True)
+        start_engine = st.button("▶ START COPY TRADING", type="primary", use_container_width=True)
     with c2:
         stop_engine = st.button("🛑 STOP ENGINE", type="secondary", use_container_width=True)
     with c3:
@@ -330,7 +338,7 @@ if 'emergency_kill' in locals() and emergency_kill:
 
 if 'start_engine' in locals() and start_engine:
     if not master_client_id or not master_api_key or not master_api_secret:
-        st.error("⚠️️ Master credentials bharna anivarya hai! Setup tab me details check karein.")
+        st.error("⚠ Master credentials bharna anivarya hai! Setup tab me details check karein.")
     elif len(slave_details) == 0:
         st.error("⚠️ Kam se kam ek Slave account jodein!")
     else:
@@ -364,6 +372,7 @@ def get_slave_financial_report(slaves, start_d, end_d):
         c_id = s.get('client_id', '')
         s_name = s.get('name', f'Slave {idx}')
         
+        # Live fetch exact fund balance from Dhan API
         avail_bal = fetch_dhan_fund_balance(c_id, s.get('api_key', ''), s.get('api_secret', ''))
         
         try:
@@ -374,7 +383,7 @@ def get_slave_financial_report(slaves, start_d, end_d):
             cursor = conn.cursor()
             cursor.execute(query, (c_id, start_d.strftime('%Y-%m-%d'), end_d.strftime('%Y-%m-%d')))
             res = cursor.fetchone()
-            total_gain = res[0] if res and res[0] is not None else (1250.75 * idx if st.session_state.running else 0.00)
+            total_gain = res[0] if res and res[0] is not None else 0.00
         except:
             total_gain = 0.00
             
