@@ -160,7 +160,7 @@ tab_config, tab_dashboard, tab_logs, tab_risk = st.tabs(["⚙️ Terminal Setup 
 # --- TAB 1: CONFIGURATION & SETTINGS ---
 with tab_config:
     st.markdown("#### **Master & Slave Account Configuration**")
-    st.write("Yahan aap har Slave account ka **Name / Label**, API details, aur Capital/Multiplier set kar sakte hain.")
+    st.write("Yahan aap Master aur har Slave account ki **Client ID aur Access Token / API Secret** enter karein.")
     
     col_m, col_s = st.columns(2)
     
@@ -168,8 +168,8 @@ with tab_config:
         st.markdown("##### 👑 Master Account Setup")
         m_saved = saved_data.get("master", {})
         master_client_id = st.text_input("Master Client ID", value=m_saved.get("client_id", ""))
-        master_api_key = st.text_input("Master API Key", value=m_saved.get("api_key", ""))
-        master_api_secret = st.text_input("Master API Secret", type="password", value=m_saved.get("api_secret", ""))
+        master_api_key = st.text_input("Master App ID / Key", value=m_saved.get("api_key", ""))
+        master_api_secret = st.text_input("Master Access Token / Secret", type="password", value=m_saved.get("api_secret", ""))
         master_capital = st.number_input("Master Capital (₹)", min_value=10000.0, value=float(m_saved.get("capital", 100000.0)), step=10000.0)
     
     with col_s:
@@ -191,9 +191,9 @@ with tab_config:
         with sc1:
             s_client_id = st.text_input(f"Client ID {i}", value=s_saved.get("client_id", ""), key=f"s_client_{i}")
         with sc2:
-            s_api_key = st.text_input(f"Key {i}", value=s_saved.get("api_key", ""), key=f"s_key_{i}")
+            s_api_key = st.text_input(f"App ID {i}", value=s_saved.get("api_key", ""), key=f"s_key_{i}")
         with sc3:
-            s_api_secret = st.text_input(f"Secret {i}", type="password", value=s_saved.get("api_secret", ""), key=f"s_sec_{i}")
+            s_api_secret = st.text_input(f"Token {i}", type="password", value=s_saved.get("api_secret", ""), key=f"s_sec_{i}")
         with sc4:
             sizing_mode = st.selectbox(f"Mode {i}", ["Fixed Multiplier", "Capital Ratio"], index=0 if s_saved.get("mode")=="Fixed Multiplier" else 1, key=f"s_mode_{i}")
         with sc5:
@@ -202,7 +202,7 @@ with tab_config:
             else:
                 s_param = st.number_input(f"Capital {i} (₹)", min_value=5000.0, value=float(s_saved.get("param", 100000.0)), step=10000.0, key=f"s_param_{i}")
         
-        if s_client_id and s_api_key and s_api_secret:
+        if s_client_id and s_api_secret:
             slave_details.append({
                 "name": s_name,
                 "client_id": s_client_id,
@@ -239,32 +239,36 @@ if 'slave_details' not in locals():
     saved_slaves = saved_data.get("slaves", [])
     slave_details = saved_slaves
 
-# --- Strict Live Dhan Fund Balance Fetcher ---
-def fetch_dhan_fund_balance(client_id, api_key, api_secret):
+# --- Advanced Accurate Dhan Fund Balance Fetcher ---
+def fetch_dhan_fund_balance(client_id, api_secret):
     if not client_id or not api_secret:
-        return 0.0
+        return 0.0, "Credentials Missing"
     try:
         url = "https://api.dhan.co/fundlimit"
         headers = {
-            "client-id": client_id,
-            "access-token": api_secret,
+            "client-id": client_id.strip(),
+            "access-token": api_secret.strip(),
             "Content-Type": "application/json"
         }
-        response = requests.get(url, headers=headers, timeout=5)
+        response = requests.get(url, headers=headers, timeout=6)
         if response.status_code == 200:
             data = response.json()
-            # Dhan API returns available balance fields; checking standard keys
+            # Checking all known Dhan API fund response variations
             for key in ["availabelBalance", "availableBalance", "panAvailableBalance", "net"]:
                 if key in data and data[key] is not None:
-                    return float(data[key])
-            # If JSON contains a list or specific structure
+                    return float(data[key]), "Connected"
             if isinstance(data, dict):
-                return float(data.get("data", {}).get("availabelBalance", data.get("data", {}).get("availableBalance", 0.0)))
+                inner = data.get("data", {})
+                for key in ["availabelBalance", "availableBalance", "panAvailableBalance", "net"]:
+                    if key in inner and inner[key] is not None:
+                        return float(inner[key]), "Connected"
+            return 0.0, "Zero Balance Data"
+        else:
+            return 0.0, f"API Error {response.status_code}: {response.text[:50]}"
     except Exception as e:
-        pass
-    return 0.0  # Returns 0.0 if API fails or credentials are invalid so wrong fake balance isn't shown
+        return 0.0, f"Error: {str(e)[:30]}"
 
-# --- TAB 2: LIVE TRADING DASHBOARD & SLAVE FINANCIAL REPORT ---
+# --- TAB 2: LIVE TRADING DASHBOARD & FINANCIAL REPORTS ---
 with tab_dashboard:
     st.markdown("#### **Control & Operations Center**")
     
@@ -278,11 +282,23 @@ with tab_dashboard:
 
     st.markdown("---")
     
+    # Fetch Master Account Live Balance
+    master_bal, master_status = fetch_dhan_fund_balance(master_client_id, master_api_secret)
+
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Engine State", "RUNNING" if st.session_state.running else "STANDBY")
-    k2.metric("Connected Slaves", f"{len(slave_details)} Units")
-    k3.metric("Safety Guard", "Active (Idempotent)")
-    k4.metric("Avg Latency", "12 ms")
+    k2.metric("Master Balance", f"₹ {master_bal:,.2f}", master_status)
+    k3.metric("Connected Slaves", f"{len(slave_details)} Units")
+    k4.metric("Safety Guard", "Active (Idempotent)")
+
+    st.markdown("### 👑 Master Account Details")
+    m_display_df = pd.DataFrame([{
+        "Master Name": "Main Master Account",
+        "Client ID": master_client_id if master_client_id else "Not Set",
+        "Available Balance (₹)": f"₹ {master_bal:,.2f}",
+        "API Status": master_status
+    }])
+    st.dataframe(m_display_df, use_container_width=True)
 
     st.markdown("### 📊 Slave Accounts Detailed Financial & Performance Report")
     
@@ -296,7 +312,6 @@ with tab_dashboard:
 
     st.markdown("### 📋 Active Fleet Telemetry")
     status_table_placeholder = st.empty()
-    log_container = st.container()
 
 def check_and_refresh_session(client_id, api_key, api_secret):
     try:
@@ -337,10 +352,10 @@ if 'emergency_kill' in locals() and emergency_kill:
     st.success(f"🚨 Kill Switch executed successfully across {success_count} account(s)!")
 
 if 'start_engine' in locals() and start_engine:
-    if not master_client_id or not master_api_key or not master_api_secret:
-        st.error("⚠ Master credentials bharna anivarya hai! Setup tab me details check karein.")
+    if not master_client_id or not master_api_secret:
+        st.error("⚠️ Master Client ID aur Access Token bharna anivarya hai! Setup tab me details check karein.")
     elif len(slave_details) == 0:
-        st.error("⚠️ Kam se kam ek Slave account jodein!")
+        st.error("⚠️️ Kam se kam ek Slave account jodein!")
     else:
         with st.spinner("🔄 Authenticating accounts via secure thread pool..."):
             m_ok, m_msg = check_and_refresh_session(master_client_id, master_api_key, master_api_secret)
@@ -372,8 +387,8 @@ def get_slave_financial_report(slaves, start_d, end_d):
         c_id = s.get('client_id', '')
         s_name = s.get('name', f'Slave {idx}')
         
-        # Live fetch exact fund balance from Dhan API
-        avail_bal = fetch_dhan_fund_balance(c_id, s.get('api_key', ''), s.get('api_secret', ''))
+        # Live fetch exact fund balance from Dhan API using access token
+        avail_bal, bal_status = fetch_dhan_fund_balance(c_id, s.get('api_secret', ''))
         
         try:
             query = """
@@ -392,6 +407,7 @@ def get_slave_financial_report(slaves, start_d, end_d):
             "Account Name": s_name,
             "Dhan Client ID": c_id,
             "Available Balance (₹)": f"₹ {avail_bal:,.2f}",
+            "Status": bal_status,
             "Date Range": f"{start_d.strftime('%d %b')} - {end_d.strftime('%d %b, %Y')}",
             "Profit Gain (₹)": f"₹ {total_gain:+,.2f}"
         })
@@ -406,7 +422,7 @@ def update_status_table(slaves):
             "Unit #": idx,
             "Account Name": s.get('name', f'Slave {idx}'),
             "Client ID": s['client_id'],
-            "Status": "🟢 CONNECTED" if st.session_state.running else "⚪ STANDBY",
+            "Engine Status": "🟢 CONNECTED" if st.session_state.running else "⚪ STANDBY",
             "Timestamp": datetime.now().strftime('%H:%M:%S')
         })
     return pd.DataFrame(table_data)
