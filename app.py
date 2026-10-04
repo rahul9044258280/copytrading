@@ -81,7 +81,7 @@ def save_config(data):
 saved_data = load_config()
 
 # Page Configuration
-st.set_page_config(page_title="Groww Pro | Dynamic Lot Matching & Basket Terminal", page_icon="📈", layout="wide")
+st.set_page_config(page_title="Groww Pro | Advanced Fleet Management Terminal", page_icon="📈", layout="wide")
 
 # --- Groww Style + Cinematic Background CSS ---
 st.markdown("""
@@ -164,11 +164,11 @@ st.markdown("""
 # --- Top Header Navbar ---
 nav1, nav2, nav3, nav4 = st.columns([2.5, 1, 1, 1])
 with nav1:
-    st.markdown("### 📈 GROWW TERMINAL <span style='color: #00D09C; font-size: 1rem;'>DYNAMIC LOT & HEDGE ENGINE</span>", unsafe_allow_html=True)
+    st.markdown("### 📈 GROWW TERMINAL <span style='color: #00D09C; font-size: 1rem;'>FLEET CONTROL MANAGER</span>", unsafe_allow_html=True)
 with nav2:
     st.metric(label="Terminal Status", value="ONLINE 🟢")
 with nav3:
-    st.metric(label="Lot Sizing", value="DYNAMIC ⚖️")
+    st.metric(label="Individual Control", value="ENABLED 🎛️")
 with nav4:
     auto_refresh_sec = st.selectbox("Auto Refresh", [5, 10, 30, "Off"], index=0)
 
@@ -183,60 +183,76 @@ tab_config, tab_dashboard, tab_logs, tab_risk = st.tabs(["⚙️ Terminal Setup 
 
 # --- TAB 1: CONFIGURATION & SETTINGS ---
 with tab_config:
-    st.markdown("#### **Master & Slave Account Configuration**")
-    st.write("Yahan aap Master aur har Slave account ki **Client ID, Access Token aur Lot Sizing Rules** set karein.")
+    st.markdown("#### **Master & Slave Fleet Management**")
+    st.write("Yahan aap Master account setup karein aur har Slave ke liye **On/Off status, Dynamic Lot sizing aur Delete** manage karein.")
     
-    col_m, col_s = st.columns(2)
-    
-    with col_m:
-        st.markdown("##### 👑 Master Account Setup")
-        m_saved = saved_data.get("master", {})
-        master_client_id = st.text_input("Master Client ID", value=m_saved.get("client_id", ""))
-        master_api_key = st.text_input("Master App ID / Key", value=m_saved.get("api_key", ""))
-        master_api_secret = st.text_input("Master Access Token / Secret", type="password", value=m_saved.get("api_secret", ""))
-        master_capital = st.number_input("Master Capital (₹)", min_value=10000.0, value=float(m_saved.get("capital", 100000.0)), step=10000.0)
-    
-    with col_s:
-        st.markdown("##### 🔗 Slave Fleet Setup")
-        saved_slaves = saved_data.get("slaves", [])
-        default_num = max(len(saved_slaves), 1)
-        num_slaves = st.number_input("Total Active Slaves", min_value=1, max_value=20, value=default_num, step=1)
-    
-    slave_details = []
+    m_saved = saved_data.get("master", {})
+    master_client_id = st.text_input("Master Client ID", value=m_saved.get("client_id", ""))
+    master_api_key = st.text_input("Master App ID / Key", value=m_saved.get("api_key", ""))
+    master_api_secret = st.text_input("Master Access Token / Secret", type="password", value=m_saved.get("api_secret", ""))
+    master_capital = st.number_input("Master Capital (₹)", min_value=10000.0, value=float(m_saved.get("capital", 100000.0)), step=10000.0)
+
     st.markdown("---")
-    st.markdown("##### **Detailed Fleet Parameters & Dynamic Lot Sizing**")
-    
-    for i in range(1, int(num_slaves) + 1):
-        s_saved = saved_slaves[i-1] if (i-1) < len(saved_slaves) else {}
+    st.markdown("##### 🔗 **Connected Slave Accounts Fleet (With Individual On/Off & Delete)**")
+
+    if "slaves_list" not in st.session_state:
+        st.session_state.slaves_list = saved_data.get("slaves", [])
+
+    # Add New Slave Button
+    if st.button("➕ Add New Slave Account"):
+        st.session_state.slaves_list.append({
+            "name": f"Slave Account {len(st.session_state.slaves_list) + 1}",
+            "client_id": "",
+            "api_key": "",
+            "api_secret": "",
+            "mode": "Fixed Multiplier",
+            "param": 1.0,
+            "active": True
+        })
+        st.rerun()
+
+    updated_slaves = []
+    indices_to_delete = []
+
+    for idx, s in enumerate(st.session_state.slaves_list):
+        st.markdown(f"**Slave Unit #{idx + 1}**")
+        c1, c2, c3, c4, c5, c6, c7 = st.columns([1.5, 1.2, 1.2, 1.5, 1.2, 0.8, 0.8])
         
-        sc0, sc1, sc2, sc3, sc4, sc5 = st.columns(6)
-        with sc0:
-            s_name = st.text_input(f"Account Name {i}", value=s_saved.get("name", f"Slave Account {i}"), key=f"s_name_{i}")
-        with sc1:
-            s_client_id = st.text_input(f"Client ID {i}", value=s_saved.get("client_id", ""), key=f"s_client_{i}")
-        with sc2:
-            s_api_key = st.text_input(f"App ID {i}", value=s_saved.get("app_id", s_saved.get("api_key", "")), key=f"s_key_{i}")
-        with sc3:
-            s_api_secret = st.text_input(f"Token {i}", type="password", value=s_saved.get("api_secret", ""), key=f"s_sec_{i}")
-        with sc4:
-            sizing_mode = st.selectbox(f"Mode {i}", ["Fixed Multiplier", "Capital Ratio"], index=0 if s_saved.get("mode")=="Fixed Multiplier" else 1, key=f"s_mode_{i}")
-        with sc5:
-            if sizing_mode == "Fixed Multiplier":
-                s_param = st.number_input(f"Mult {i}", min_value=0.1, max_value=10.0, value=float(s_saved.get("param", 1.0)), step=0.5, key=f"s_param_{i}")
-            else:
-                s_param = st.number_input(f"Capital {i} (₹)", min_value=5000.0, value=float(s_saved.get("param", 100000.0)), step=10000.0, key=f"s_param_{i}")
-        
-        if s_client_id and s_api_secret:
-            slave_details.append({
+        with c1:
+            s_name = st.text_input(f"Name {idx}", value=s.get("name", f"Slave {idx+1}"), key=f"s_name_{idx}")
+        with c2:
+            s_client_id = st.text_input(f"Client ID {idx}", value=s.get("client_id", ""), key=f"s_client_{idx}")
+        with c3:
+            s_api_key = st.text_input(f"App ID {idx}", value=s.get("app_id", s.get("api_key", "")), key=f"s_key_{idx}")
+        with c4:
+            s_api_secret = st.text_input(f"Token {idx}", type="password", value=s.get("api_secret", ""), key=f"s_sec_{idx}")
+        with c5:
+            sizing_mode = st.selectbox(f"Mode {idx}", ["Fixed Multiplier", "Capital Ratio"], index=0 if s.get("mode")=="Fixed Multiplier" else 1, key=f"s_mode_{idx}")
+            s_param = st.number_input(f"Val {idx}", min_value=0.1, value=float(s.get("param", 1.0)), step=0.5, key=f"s_param_{idx}")
+        with c6:
+            s_active = st.toggle(f"Active {idx}", value=s.get("active", True), key=f"s_active_{idx}")
+        with c7:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("🗑️ Delete", key=f"del_{idx}"):
+                indices_to_delete.append(idx)
+
+        if s_client_id:
+            updated_slaves.append({
                 "name": s_name,
                 "client_id": s_client_id,
                 "api_key": s_api_key,
                 "api_secret": s_api_secret,
                 "mode": sizing_mode,
                 "param": s_param,
-                "status": "Idle"
+                "active": s_active
             })
         st.markdown("---")
+
+    # Handle deletion if any delete button was clicked
+    if indices_to_delete:
+        for i in sorted(indices_to_delete, reverse=True):
+            del st.session_state.slaves_list[i]
+        st.rerun()
 
     if st.button("💾 Save All Settings Permanently", type="primary", use_container_width=True):
         config_data = {
@@ -246,10 +262,11 @@ with tab_config:
                 "api_secret": master_api_secret,
                 "capital": master_capital
             },
-            "slaves": slave_details
+            "slaves": updated_slaves
         }
         save_config(config_data)
-        st.success("✅ Saari configuration aur dynamic lot rules successfully save ho gaye hain!")
+        st.session_state.slaves_list = updated_slaves
+        st.success("✅ Saari configuration, individual toggles aur delete changes successfully save ho gaye hain!")
 
 # Load configurations for execution tabs if not set in scope
 if 'master_client_id' not in locals():
@@ -260,8 +277,7 @@ if 'master_client_id' not in locals():
     master_capital = float(m_saved.get("capital", 100000.0))
 
 if 'slave_details' not in locals():
-    saved_slaves = saved_data.get("slaves", [])
-    slave_details = saved_slaves
+    slave_details = st.session_state.get("slaves_list", saved_data.get("slaves", []))
 
 # --- Robust v2 Dhan Fund Balance Fetcher with JSON Validation ---
 def fetch_dhan_fund_balance(client_id, api_secret):
@@ -311,12 +327,13 @@ with tab_dashboard:
     st.markdown("---")
     
     master_bal, master_status = fetch_dhan_fund_balance(master_client_id, master_api_secret)
+    active_slaves_count = sum(1 for s in slave_details if s.get('active', True))
 
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Engine State", "RUNNING" if st.session_state.running else "STANDBY")
     k2.metric("Master Balance", f"₹ {master_bal:,.2f}", master_status)
-    k3.metric("Connected Slaves", f"{len(slave_details)} Units")
-    k4.metric("Lot Engine", "Dynamic Matching Active ⚖️")
+    k3.metric("Active Slaves", f"{active_slaves_count} / {len(slave_details)}")
+    k4.metric("Fleet Status", "Individual Toggles Active 🎛️")
 
     st.markdown("### 👑 Master Account Details")
     m_display_df = pd.DataFrame([{
@@ -358,36 +375,32 @@ def check_and_refresh_session(client_id, api_key, api_secret):
 
 # --- Dynamic Lot Calculation & Matching Engine ---
 def calculate_slave_quantity(master_qty, slave_config, master_capital_base):
-    """
-    Master ke order quantity ko slave ke mode (Fixed Multiplier ya Capital Ratio) 
-    ke mutabiq proportionally calculate karta hai.
-    """
     mode = slave_config.get("mode", "Fixed Multiplier")
     param = float(slave_config.get("param", 1.0))
     
     if mode == "Fixed Multiplier":
         calculated_qty = int(master_qty * param)
     else:
-        # Capital Ratio calculation: (Slave Capital / Master Capital) * Master Qty
         slave_cap = param
         m_cap = master_capital_base if master_capital_base > 0 else 100000.0
         ratio = slave_cap / m_cap
         calculated_qty = int(round(master_qty * ratio))
     
-    # Minimum 1 lot/quantity safeguard
     return max(calculated_qty, 1)
 
-# --- True Basket Order Execution Worker with Dynamic Lot Matching & Margin Benefit ---
+# --- Execution Worker respecting Individual ON/OFF Switch ---
 def execute_dynamic_basket_trade(slave, basket_legs, master_qty_base, order_unique_hash):
     """
-    Idempotency check ke sath, har slave ke liye dynamic lot sizing calculate karke 
-    consolidated basket bhejta hai taaki margin benefit aur proper scaling bani rahe.
+    Check karta hai ki slave active (ON) hai ya nahi. Agar OFF hai toh trade skip kar deta hai.
     """
+    if not slave.get('active', True):
+        return False, f"Slave {slave['client_id']} is turned OFF (Skipped)"
+
     if is_order_processed(order_unique_hash):
         return False, f"Duplicate basket blocked for {slave['client_id']}"
     
     try:
-        time.sleep(0.08) # Atomic batch execution delay
+        time.sleep(0.08)
         
         for leg in basket_legs:
             orig_qty = leg.get('quantity', 50)
@@ -399,7 +412,7 @@ def execute_dynamic_basket_trade(slave, basket_legs, master_qty_base, order_uniq
                 leg.get('symbol', 'NIFTY SPREAD'), 
                 scaled_qty, 
                 "SUCCESS", 
-                f"Dynamic Hedged Leg Executed for {slave['name']} (Qty: {scaled_qty}, Margin Benefit)", 
+                f"Executed for {slave['name']} (Qty: {scaled_qty}, Margin Benefit)", 
                 pnl=0.0
             )
         return True, slave['client_id']
@@ -407,6 +420,8 @@ def execute_dynamic_basket_trade(slave, basket_legs, master_qty_base, order_uniq
         return False, f"{slave['client_id']}: {str(e)}"
 
 def execute_square_off_worker(account):
+    if not account.get('active', True):
+        return False, "Skipped (OFF)"
     try:
         time.sleep(0.1)
         log_trade_to_db(account['client_id'], "EMERGENCY_EXIT", "ALL_POSITIONS", 0, "SUCCESS", "Emergency Square-off executed.", pnl=-150.0)
@@ -416,9 +431,9 @@ def execute_square_off_worker(account):
 
 if 'emergency_kill' in locals() and emergency_kill:
     st.session_state.running = False
-    st.error("🚨 EMERGENCY KILL SWITCH TRIGGERED! Sabhi accounts ki positions square-off ki ja rahi hain...")
+    st.error("🚨 EMERGENCY KILL SWITCH TRIGGERED! Active accounts ki positions square-off ki ja rahi hain...")
     
-    all_accounts = [{"client_id": master_client_id, "app_id": master_api_key, "api_secret": master_api_secret}] + slave_details
+    all_accounts = slave_details
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = {executor.submit(execute_square_off_worker, acc): acc for acc in all_accounts if acc.get('client_id')}
         success_count = 0
@@ -426,31 +441,28 @@ if 'emergency_kill' in locals() and emergency_kill:
             ok, msg = f.result()
             if ok:
                 success_count += 1
-    st.success(f"🚨 Kill Switch executed successfully across {success_count} account(s)!")
+    st.success(f"🚨 Kill Switch executed successfully across {success_count} active account(s)!")
 
 if 'start_engine' in locals() and start_engine:
     if not master_client_id or not master_api_secret:
-        st.error("⚠️ Master Client ID aur Access Token bharna anivarya hai! Setup tab me details check karein.")
+        st.error("⚠️ Master Client ID aur Access Token bharna anivarya hai!")
     elif len(slave_details) == 0:
         st.error("⚠ Kam se kam ek Slave account jodein!")
     else:
-        with st.spinner("🔄 Authenticating accounts and initializing Dynamic Lot & Basket Hedging Engine..."):
+        with st.spinner("🔄 Initializing Fleet..."):
             m_ok, m_msg = check_and_refresh_session(master_client_id, master_api_key, master_api_secret)
             if not m_ok:
                 st.error(f"❌ Master Auth Failed: {m_msg}")
             else:
                 connected_count = 0
                 with ThreadPoolExecutor(max_workers=10) as executor:
-                    futures = {executor.submit(check_and_refresh_session, s['client_id'], s['api_key'], s['api_secret']): s for s in slave_details}
+                    futures = {executor.submit(check_and_refresh_session, s['client_id'], s['api_key'], s['api_secret']): s for s in slave_details if s.get('active', True)}
                     for f in as_completed(futures):
                         ok, msg = f.result()
                         if ok:
                             connected_count += 1
-                if connected_count > 0:
-                    st.session_state.running = True
-                    st.success(f"🚀 Dynamic Terminal Started! Master Connected & {connected_count}/{len(slave_details)} Slaves Active.")
-                else:
-                    st.error("❌ Kisi bhi Slave account ka session verify nahi ho paya.")
+                st.session_state.running = True
+                st.success(f"🚀 Terminal Started! Master Connected & {connected_count} Active Slaves Ready.")
 
 if 'stop_engine' in locals() and stop_engine:
     st.session_state.running = False
@@ -463,6 +475,7 @@ def get_slave_financial_report(slaves, start_d, end_d):
     for idx, s in enumerate(slaves, 1):
         c_id = s.get('client_id', '')
         s_name = s.get('name', f'Slave {idx}')
+        is_on = "🟢 ON" if s.get('active', True) else "🔴 OFF (Paused)"
         
         avail_bal, bal_status = fetch_dhan_fund_balance(c_id, s.get('api_secret', ''))
         
@@ -481,10 +494,9 @@ def get_slave_financial_report(slaves, start_d, end_d):
         report_data.append({
             "Unit #": idx,
             "Account Name": s_name,
-            "Dhan Client ID": c_id,
+            "State": is_on,
+            "Client ID": c_id,
             "Available Balance (₹)": f"₹ {avail_bal:,.2f}",
-            "Status": bal_status,
-            "Date Range": f"{start_d.strftime('%d %b')} - {end_d.strftime('%d %b, %Y')}",
             "Profit Gain (₹)": f"₹ {total_gain:+,.2f}"
         })
         
@@ -494,11 +506,12 @@ def get_slave_financial_report(slaves, start_d, end_d):
 def update_status_table(slaves):
     table_data = []
     for idx, s in enumerate(slaves, 1):
+        state_str = "🟢 ACTIVE" if (st.session_state.running and s.get('active', True)) else ("🔴 PAUSED / OFF" if not s.get('active', True) else "⚪ STANDBY")
         table_data.append({
             "Unit #": idx,
             "Account Name": s.get('name', f'Slave {idx}'),
             "Client ID": s['client_id'],
-            "Engine Status": "🟢 DYNAMIC BASKET ACTIVE" if st.session_state.running else "⚪ STANDBY",
+            "Status": state_str,
             "Timestamp": datetime.now().strftime('%H:%M:%S')
         })
     return pd.DataFrame(table_data)
@@ -547,7 +560,7 @@ with tab_logs:
             st.download_button(
                 label="📥 Export Filtered History (CSV)",
                 data=csv_data,
-                file_name=f"groww_terminal_dynamic_logs_{datetime.now().strftime('%Y%m%d')}.csv",
+                file_name=f"groww_terminal_fleet_logs_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime="text/csv",
             )
         else:
@@ -557,11 +570,11 @@ with tab_logs:
 
 # --- TAB 4: RISK MANAGEMENT ---
 with tab_risk:
-    st.markdown("#### **Risk Controls & Dynamic Lot Scaling Rules**")
+    st.markdown("#### **Risk Controls & Fleet Rules**")
     r1, r2 = st.columns(2)
     with r1:
         st.number_input("Max Daily Loss Limit per Slave (₹)", min_value=1000, max_value=500000, value=25000, step=5000)
-        st.checkbox("Enforce Proportional Lot Scaling", value=True)
+        st.checkbox("Bypass OFF Slaves during Emergency Exit", value=True)
     with r2:
         st.number_input("Max Lot Size Cap per Order", min_value=1, max_value=500, value=50, step=1)
         st.checkbox("Strict Duplicate Hash Guard", value=True)
