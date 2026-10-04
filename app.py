@@ -160,7 +160,7 @@ tab_config, tab_dashboard, tab_logs, tab_risk = st.tabs(["⚙️ Terminal Setup 
 # --- TAB 1: CONFIGURATION & SETTINGS ---
 with tab_config:
     st.markdown("#### **Master & Slave Account Configuration**")
-    st.write("Yahan aap Master aur har Slave account ki **Client ID aur Access Token / API Secret** enter karein.")
+    st.write("Yahan aap Master aur har Slave account ki **Client ID aur Access Token** enter karein.")
     
     col_m, col_s = st.columns(2)
     
@@ -239,32 +239,38 @@ if 'slave_details' not in locals():
     saved_slaves = saved_data.get("slaves", [])
     slave_details = saved_slaves
 
-# --- Advanced Accurate Dhan Fund Balance Fetcher ---
+# --- Robust v2 Dhan Fund Balance Fetcher with JSON Validation ---
 def fetch_dhan_fund_balance(client_id, api_secret):
     if not client_id or not api_secret:
         return 0.0, "Credentials Missing"
     try:
-        url = "https://api.dhan.co/fundlimit"
+        # Updated to official Dhan API v2 endpoint
+        url = "https://api.dhan.co/v2/fundlimit"
         headers = {
             "client-id": client_id.strip(),
             "access-token": api_secret.strip(),
             "Content-Type": "application/json"
         }
         response = requests.get(url, headers=headers, timeout=6)
+        
         if response.status_code == 200:
-            data = response.json()
-            # Checking all known Dhan API fund response variations
+            try:
+                data = response.json()
+            except Exception:
+                return 0.0, f"Non-JSON Response: {response.text[:35]}"
+            
+            # Checking standard Dhan fund limit fields
             for key in ["availabelBalance", "availableBalance", "panAvailableBalance", "net"]:
                 if key in data and data[key] is not None:
-                    return float(data[key]), "Connected"
+                    return float(data[key]), "Connected 🟢"
             if isinstance(data, dict):
                 inner = data.get("data", {})
                 for key in ["availabelBalance", "availableBalance", "panAvailableBalance", "net"]:
                     if key in inner and inner[key] is not None:
-                        return float(inner[key]), "Connected"
+                        return float(inner[key]), "Connected 🟢"
             return 0.0, "Zero Balance Data"
         else:
-            return 0.0, f"API Error {response.status_code}: {response.text[:50]}"
+            return 0.0, f"API Error {response.status_code}"
     except Exception as e:
         return 0.0, f"Error: {str(e)[:30]}"
 
@@ -355,7 +361,7 @@ if 'start_engine' in locals() and start_engine:
     if not master_client_id or not master_api_secret:
         st.error("⚠️ Master Client ID aur Access Token bharna anivarya hai! Setup tab me details check karein.")
     elif len(slave_details) == 0:
-        st.error("⚠️️ Kam se kam ek Slave account jodein!")
+        st.error("⚠ Kam se kam ek Slave account jodein!")
     else:
         with st.spinner("🔄 Authenticating accounts via secure thread pool..."):
             m_ok, m_msg = check_and_refresh_session(master_client_id, master_api_key, master_api_secret)
@@ -387,7 +393,7 @@ def get_slave_financial_report(slaves, start_d, end_d):
         c_id = s.get('client_id', '')
         s_name = s.get('name', f'Slave {idx}')
         
-        # Live fetch exact fund balance from Dhan API using access token
+        # Live fetch exact fund balance from Dhan API v2
         avail_bal, bal_status = fetch_dhan_fund_balance(c_id, s.get('api_secret', ''))
         
         try:
