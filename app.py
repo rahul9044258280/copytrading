@@ -5,7 +5,6 @@ import json
 import os
 import sqlite3
 import pandas as pd
-import yfinance as yf
 from datetime import datetime, date
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -77,44 +76,6 @@ st.markdown("""
         padding-top: 1rem;
     }
 
-    /* Live Ticker Bar Styling */
-    .ticker-container {
-        background: rgba(17, 24, 39, 0.85);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        backdrop-filter: blur(10px);
-        padding: 10px 15px;
-        border-radius: 10px;
-        display: flex;
-        justify-content: space-around;
-        align-items: center;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    }
-    .ticker-item {
-        text-align: center;
-    }
-    .ticker-title {
-        font-size: 0.75rem;
-        color: #9ca3af;
-        text-transform: uppercase;
-        font-weight: 600;
-    }
-    .ticker-val {
-        font-size: 0.95rem;
-        font-weight: 700;
-        color: #ffffff;
-    }
-    .ticker-pos {
-        color: #00D09C;
-        font-size: 0.8rem;
-        font-weight: 600;
-    }
-    .ticker-neg {
-        color: #ef4444;
-        font-size: 0.8rem;
-        font-weight: 600;
-    }
-
     /* Metric Cards */
     div[data-testid="stMetric"] {
         background: rgba(17, 24, 39, 0.7);
@@ -183,62 +144,11 @@ nav1, nav2, nav3 = st.columns([3, 1, 1])
 with nav1:
     st.markdown("### 📈 GROWW TERMINAL <span style='color: #00D09C; font-size: 1rem;'>CENTRALIZED ENGINE</span>", unsafe_allow_html=True)
 with nav2:
-    st.metric(label="Market Feed", value="LIVE 🟢")
+    st.metric(label="Terminal Status", value="ONLINE 🟢")
 with nav3:
     st.metric(label="Execution Mode", value="ULTRA-FAST")
 
 st.markdown("---")
-
-# --- Live Indian Market Ticker via yfinance ---
-def fetch_live_market_data():
-    tickers = {
-        "NIFTY 50": "^NSEI",
-        "BANK NIFTY": "^NSEBANK",
-        "SENSEX": "^BSESN",
-        "FINNIFTY": "^CNXFIN",
-        "INDIA VIX": "^INDIAVIX"
-    }
-    market_data = {}
-    fallback_data = {
-        "NIFTY 50": {"val": "24,356.20", "change": "+142.50 (+0.59%)", "pos": True},
-        "BANK NIFTY": {"val": "52,180.45", "change": "+385.20 (+0.74%)", "pos": True},
-        "SENSEX": {"val": "79,840.10", "change": "+410.00 (+0.52%)", "pos": True},
-        "FINNIFTY": {"val": "23,410.90", "change": "-25.30 (-0.11%)", "pos": False},
-        "INDIA VIX": {"val": "13.45", "change": "-0.82 (-5.74%)", "pos": False}
-    }
-    for name, symbol in tickers.items():
-        try:
-            t = yf.Ticker(symbol)
-            hist = t.history(period="2d")
-            if len(hist) >= 2:
-                curr = hist['Close'].iloc[-1]
-                prev = hist['Close'].iloc[-2]
-                change = curr - prev
-                pct = (change / prev) * 100
-                market_data[name] = {
-                    "val": f"{curr:,.2f}",
-                    "change": f"{change:+,.2f} ({pct:+.2f}%)",
-                    "pos": change >= 0
-                }
-            else:
-                market_data[name] = fallback_data[name]
-        except:
-            market_data[name] = fallback_data[name]
-    return market_data
-
-live_indices = fetch_live_market_data()
-ticker_html = '<div class="ticker-container">'
-for name, info in live_indices.items():
-    css_class = "ticker-pos" if info["pos"] else "ticker-neg"
-    ticker_html += f"""
-        <div class="ticker-item">
-            <div class="ticker-title">{name}</div>
-            <div class="ticker-val">{info['val']}</div>
-            <div class="{css_class}">{info['change']}</div>
-        </div>
-    """
-ticker_html += '</div>'
-st.markdown(ticker_html, unsafe_allow_html=True)
 
 # Session State Initialization
 if 'running' not in st.session_state:
@@ -344,7 +254,6 @@ def fetch_dhan_fund_balance(client_id, api_key, api_secret):
             return float(data.get("availabelBalance", 125430.50))
     except:
         pass
-    # Fallback simulated realistic balance if offline/mock
     return 150000.0
 
 # --- TAB 2: LIVE TRADING DASHBOARD & SLAVE FINANCIAL REPORT ---
@@ -353,7 +262,7 @@ with tab_dashboard:
     
     c1, c2, c3 = st.columns(3)
     with c1:
-        start_engine = st.button("▶️ START COPY TRADING", type="primary", use_container_width=True)
+        start_engine = st.button("▶️️ START COPY TRADING", type="primary", use_container_width=True)
     with c2:
         stop_engine = st.button("🛑 STOP ENGINE", type="secondary", use_container_width=True)
     with c3:
@@ -369,7 +278,6 @@ with tab_dashboard:
 
     st.markdown("### 📊 Slave Accounts Detailed Financial & Performance Report")
     
-    # Date Range Filter for Profit Gain Calculation
     d_col1, d_col2 = st.columns(2)
     with d_col1:
         start_date = st.date_input("From Date", value=date.today())
@@ -422,7 +330,7 @@ if 'emergency_kill' in locals() and emergency_kill:
 
 if 'start_engine' in locals() and start_engine:
     if not master_client_id or not master_api_key or not master_api_secret:
-        st.error("⚠️ Master credentials bharna anivarya hai! Setup tab me details check karein.")
+        st.error("⚠️️ Master credentials bharna anivarya hai! Setup tab me details check karein.")
     elif len(slave_details) == 0:
         st.error("⚠️ Kam se kam ek Slave account jodein!")
     else:
@@ -456,10 +364,8 @@ def get_slave_financial_report(slaves, start_d, end_d):
         c_id = s.get('client_id', '')
         s_name = s.get('name', f'Slave {idx}')
         
-        # Fetch live available balance from Dhan account
         avail_bal = fetch_dhan_fund_balance(c_id, s.get('api_key', ''), s.get('api_secret', ''))
         
-        # Query total profit gain within date range from SQLite
         try:
             query = """
                 SELECT SUM(pnl) FROM trade_logs 
