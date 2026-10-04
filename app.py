@@ -160,7 +160,7 @@ tab_config, tab_dashboard, tab_logs, tab_risk = st.tabs(["⚙️ Terminal Setup 
 # --- TAB 1: CONFIGURATION & SETTINGS ---
 with tab_config:
     st.markdown("#### **Master & Slave Account Configuration**")
-    st.write("Yahan aap Master aur har Slave account ki **Client ID aur Access Token** enter karein.")
+    st.write("Yahan aap apni 12-month wali **App ID, Secret / Access Token** aur **Client ID** enter karein.")
     
     col_m, col_s = st.columns(2)
     
@@ -168,7 +168,7 @@ with tab_config:
         st.markdown("##### 👑 Master Account Setup")
         m_saved = saved_data.get("master", {})
         master_client_id = st.text_input("Master Client ID", value=m_saved.get("client_id", ""))
-        master_api_key = st.text_input("Master App ID / Key", value=m_saved.get("api_key", ""))
+        master_app_id = st.text_input("Master App ID (12-Month)", value=m_saved.get("app_id", ""))
         master_api_secret = st.text_input("Master Access Token / Secret", type="password", value=m_saved.get("api_secret", ""))
         master_capital = st.number_input("Master Capital (₹)", min_value=10000.0, value=float(m_saved.get("capital", 100000.0)), step=10000.0)
     
@@ -191,7 +191,7 @@ with tab_config:
         with sc1:
             s_client_id = st.text_input(f"Client ID {i}", value=s_saved.get("client_id", ""), key=f"s_client_{i}")
         with sc2:
-            s_api_key = st.text_input(f"App ID {i}", value=s_saved.get("api_key", ""), key=f"s_key_{i}")
+            s_app_id = st.text_input(f"App ID {i}", value=s_saved.get("app_id", ""), key=f"s_appid_{i}")
         with sc3:
             s_api_secret = st.text_input(f"Token {i}", type="password", value=s_saved.get("api_secret", ""), key=f"s_sec_{i}")
         with sc4:
@@ -206,7 +206,7 @@ with tab_config:
             slave_details.append({
                 "name": s_name,
                 "client_id": s_client_id,
-                "api_key": s_api_key,
+                "app_id": s_app_id,
                 "api_secret": s_api_secret,
                 "mode": sizing_mode,
                 "param": s_param,
@@ -218,7 +218,7 @@ with tab_config:
         config_data = {
             "master": {
                 "client_id": master_client_id,
-                "api_key": master_api_key,
+                "app_id": master_app_id,
                 "api_secret": master_api_secret,
                 "capital": master_capital
             },
@@ -231,7 +231,7 @@ with tab_config:
 if 'master_client_id' not in locals():
     m_saved = saved_data.get("master", {})
     master_client_id = m_saved.get("client_id", "")
-    master_api_key = m_saved.get("api_key", "")
+    master_app_id = m_saved.get("app_id", "")
     master_api_secret = m_saved.get("api_secret", "")
     master_capital = float(m_saved.get("capital", 100000.0))
 
@@ -239,12 +239,11 @@ if 'slave_details' not in locals():
     saved_slaves = saved_data.get("slaves", [])
     slave_details = saved_slaves
 
-# --- Robust v2 Dhan Fund Balance Fetcher with JSON Validation ---
+# --- Robust Dhan Fund Balance Fetcher with Session Check ---
 def fetch_dhan_fund_balance(client_id, api_secret):
     if not client_id or not api_secret:
         return 0.0, "Credentials Missing"
     try:
-        # Updated to official Dhan API v2 endpoint
         url = "https://api.dhan.co/v2/fundlimit"
         headers = {
             "client-id": client_id.strip(),
@@ -257,9 +256,8 @@ def fetch_dhan_fund_balance(client_id, api_secret):
             try:
                 data = response.json()
             except Exception:
-                return 0.0, f"Non-JSON Response: {response.text[:35]}"
+                return 0.0, f"Non-JSON Response"
             
-            # Checking standard Dhan fund limit fields
             for key in ["availabelBalance", "availableBalance", "panAvailableBalance", "net"]:
                 if key in data and data[key] is not None:
                     return float(data[key]), "Connected 🟢"
@@ -272,7 +270,7 @@ def fetch_dhan_fund_balance(client_id, api_secret):
         else:
             return 0.0, f"API Error {response.status_code}"
     except Exception as e:
-        return 0.0, f"Error: {str(e)[:30]}"
+        return 0.0, f"Error"
 
 # --- TAB 2: LIVE TRADING DASHBOARD & FINANCIAL REPORTS ---
 with tab_dashboard:
@@ -288,7 +286,6 @@ with tab_dashboard:
 
     st.markdown("---")
     
-    # Fetch Master Account Live Balance
     master_bal, master_status = fetch_dhan_fund_balance(master_client_id, master_api_secret)
 
     k1, k2, k3, k4 = st.columns(4)
@@ -319,11 +316,11 @@ with tab_dashboard:
     st.markdown("### 📋 Active Fleet Telemetry")
     status_table_placeholder = st.empty()
 
-def check_and_refresh_session(client_id, api_key, api_secret):
+def verify_dhan_session(client_id, app_id, api_secret):
     try:
         url = f"https://auth.dhan.co/app/generate-consent?client_id={client_id}"
         headers = {
-            "app_id": api_key,
+            "app_id": app_id,
             "app_secret": api_secret,
             "Content-Type": "application/json"
         }
@@ -347,7 +344,7 @@ if 'emergency_kill' in locals() and emergency_kill:
     st.session_state.running = False
     st.error("🚨 EMERGENCY KILL SWITCH TRIGGERED! Sabhi accounts ki positions square-off ki ja rahi hain...")
     
-    all_accounts = [{"client_id": master_client_id, "api_key": master_api_key, "api_secret": master_api_secret}] + slave_details
+    all_accounts = [{"client_id": master_client_id, "app_id": master_app_id, "api_secret": master_api_secret}] + slave_details
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = {executor.submit(execute_square_off_worker, acc): acc for acc in all_accounts if acc.get('client_id')}
         success_count = 0
@@ -359,27 +356,27 @@ if 'emergency_kill' in locals() and emergency_kill:
 
 if 'start_engine' in locals() and start_engine:
     if not master_client_id or not master_api_secret:
-        st.error("⚠️ Master Client ID aur Access Token bharna anivarya hai! Setup tab me details check karein.")
+        st.error("⚠️ Master Client ID aur Access Token/Secret bharna anivarya hai! Setup tab me details check karein.")
     elif len(slave_details) == 0:
         st.error("⚠ Kam se kam ek Slave account jodein!")
     else:
-        with st.spinner("🔄 Authenticating accounts via secure thread pool..."):
-            m_ok, m_msg = check_and_refresh_session(master_client_id, master_api_key, master_api_secret)
-            if not m_ok:
-                st.error(f"❌ Master Auth Failed: {m_msg}")
+        with st.spinner("🔄 Verifying account credentials..."):
+            m_bal_check, m_stat = fetch_dhan_fund_balance(master_client_id, master_api_secret)
+            if "Connected" not in m_stat:
+                st.error(f"❌ Master Connection Failed: {m_stat}. Kripya valid token check karein.")
             else:
                 connected_count = 0
                 with ThreadPoolExecutor(max_workers=10) as executor:
-                    futures = {executor.submit(check_and_refresh_session, s['client_id'], s['api_key'], s['api_secret']): s for s in slave_details}
+                    futures = {executor.submit(fetch_dhan_fund_balance, s['client_id'], s['api_secret']): s for s in slave_details}
                     for f in as_completed(futures):
-                        ok, msg = f.result()
-                        if ok:
+                        _, stat = f.result()
+                        if "Connected" in stat:
                             connected_count += 1
                 if connected_count > 0:
                     st.session_state.running = True
                     st.success(f"🚀 Terminal Started! Master Connected & {connected_count}/{len(slave_details)} Slaves Active.")
                 else:
-                    st.error("❌ Kisi bhi Slave account ka session verify nahi ho paya.")
+                    st.error("❌ Kisi bhi Slave account ka balance fetch nahi ho paya. Token check karein.")
 
 if 'stop_engine' in locals() and stop_engine:
     st.session_state.running = False
@@ -393,7 +390,6 @@ def get_slave_financial_report(slaves, start_d, end_d):
         c_id = s.get('client_id', '')
         s_name = s.get('name', f'Slave {idx}')
         
-        # Live fetch exact fund balance from Dhan API v2
         avail_bal, bal_status = fetch_dhan_fund_balance(c_id, s.get('api_secret', ''))
         
         try:
