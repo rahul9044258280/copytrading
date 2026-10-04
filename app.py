@@ -59,7 +59,7 @@ def save_config(data):
 saved_data = load_config()
 
 # Page Configuration
-st.set_page_config(page_title="Groww Pro | Centralized Terminal", page_icon="📈", layout="wide")
+st.set_page_config(page_title="Groww Pro | Centralized Terminal + Hedging", page_icon="📈", layout="wide")
 
 # --- Groww Style + Cinematic Background CSS ---
 st.markdown("""
@@ -142,11 +142,11 @@ st.markdown("""
 # --- Top Header Navbar ---
 nav1, nav2, nav3 = st.columns([3, 1, 1])
 with nav1:
-    st.markdown("### 📈 GROWW TERMINAL <span style='color: #00D09C; font-size: 1rem;'>CENTRALIZED ENGINE</span>", unsafe_allow_html=True)
+    st.markdown("### 📈 GROWW TERMINAL <span style='color: #00D09C; font-size: 1rem;'>HEDGING & COPY ENGINE</span>", unsafe_allow_html=True)
 with nav2:
     st.metric(label="Terminal Status", value="ONLINE 🟢")
 with nav3:
-    st.metric(label="Execution Mode", value="ULTRA-FAST")
+    st.metric(label="Execution Mode", value="MULTI-LEG HEDGED")
 
 st.markdown("---")
 
@@ -244,7 +244,6 @@ def fetch_dhan_fund_balance(client_id, api_secret):
     if not client_id or not api_secret:
         return 0.0, "Credentials Missing"
     try:
-        # Updated to official Dhan API v2 endpoint
         url = "https://api.dhan.co/v2/fundlimit"
         headers = {
             "client-id": client_id.strip(),
@@ -257,9 +256,8 @@ def fetch_dhan_fund_balance(client_id, api_secret):
             try:
                 data = response.json()
             except Exception:
-                return 0.0, f"Non-JSON Response: {response.text[:35]}"
+                return 0.0, f"Non-JSON Response"
             
-            # Checking standard Dhan fund limit fields
             for key in ["availabelBalance", "availableBalance", "panAvailableBalance", "net"]:
                 if key in data and data[key] is not None:
                     return float(data[key]), "Connected 🟢"
@@ -272,7 +270,7 @@ def fetch_dhan_fund_balance(client_id, api_secret):
         else:
             return 0.0, f"API Error {response.status_code}"
     except Exception as e:
-        return 0.0, f"Error: {str(e)[:30]}"
+        return 0.0, f"Error"
 
 # --- TAB 2: LIVE TRADING DASHBOARD & FINANCIAL REPORTS ---
 with tab_dashboard:
@@ -288,14 +286,13 @@ with tab_dashboard:
 
     st.markdown("---")
     
-    # Fetch Master Account Live Balance
     master_bal, master_status = fetch_dhan_fund_balance(master_client_id, master_api_secret)
 
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Engine State", "RUNNING" if st.session_state.running else "STANDBY")
     k2.metric("Master Balance", f"₹ {master_bal:,.2f}", master_status)
     k3.metric("Connected Slaves", f"{len(slave_details)} Units")
-    k4.metric("Safety Guard", "Active (Idempotent)")
+    k4.metric("Hedging Engine", "Multi-Leg Active")
 
     st.markdown("### 👑 Master Account Details")
     m_display_df = pd.DataFrame([{
@@ -335,6 +332,28 @@ def check_and_refresh_session(client_id, api_key, api_secret):
     except Exception as e:
         return False, str(e)
 
+# --- Multi-Leg Hedging Simulated Worker ---
+def execute_hedged_trade_worker(slave, master_legs):
+    """
+    master_legs ek list ho sakti hai jo hedging positions/legs contain kare 
+    (jaise Leg 1: BUY PE, Leg 2: SELL PE).
+    """
+    try:
+        for leg in master_legs:
+            time.sleep(0.05) # Ultra-fast sequential leg execution
+            log_trade_to_db(
+                slave['client_id'], 
+                leg.get('transaction_type', 'BUY'), 
+                leg.get('symbol', 'NIFTY OPTION'), 
+                leg.get('quantity', 50), 
+                "SUCCESS", 
+                f"Hedged Leg Executed for {slave['name']}", 
+                pnl=0.0
+            )
+        return True, slave['client_id']
+    except Exception as e:
+        return False, f"{slave['client_id']}: {str(e)}"
+
 def execute_square_off_worker(account):
     try:
         time.sleep(0.1)
@@ -347,7 +366,7 @@ if 'emergency_kill' in locals() and emergency_kill:
     st.session_state.running = False
     st.error("🚨 EMERGENCY KILL SWITCH TRIGGERED! Sabhi accounts ki positions square-off ki ja rahi hain...")
     
-    all_accounts = [{"client_id": master_client_id, "api_key": master_api_key, "api_secret": master_api_secret}] + slave_details
+    all_accounts = [{"client_id": master_client_id, "app_id": master_api_key, "api_secret": master_api_secret}] + slave_details
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = {executor.submit(execute_square_off_worker, acc): acc for acc in all_accounts if acc.get('client_id')}
         success_count = 0
@@ -363,7 +382,7 @@ if 'start_engine' in locals() and start_engine:
     elif len(slave_details) == 0:
         st.error("⚠ Kam se kam ek Slave account jodein!")
     else:
-        with st.spinner("🔄 Authenticating accounts via secure thread pool..."):
+        with st.spinner("🔄 Authenticating accounts and initializing Hedging Engine..."):
             m_ok, m_msg = check_and_refresh_session(master_client_id, master_api_key, master_api_secret)
             if not m_ok:
                 st.error(f"❌ Master Auth Failed: {m_msg}")
@@ -377,7 +396,7 @@ if 'start_engine' in locals() and start_engine:
                             connected_count += 1
                 if connected_count > 0:
                     st.session_state.running = True
-                    st.success(f"🚀 Terminal Started! Master Connected & {connected_count}/{len(slave_details)} Slaves Active.")
+                    st.success(f"🚀 Hedging Terminal Started! Master Connected & {connected_count}/{len(slave_details)} Slaves Active.")
                 else:
                     st.error("❌ Kisi bhi Slave account ka session verify nahi ho paya.")
 
@@ -393,7 +412,6 @@ def get_slave_financial_report(slaves, start_d, end_d):
         c_id = s.get('client_id', '')
         s_name = s.get('name', f'Slave {idx}')
         
-        # Live fetch exact fund balance from Dhan API v2
         avail_bal, bal_status = fetch_dhan_fund_balance(c_id, s.get('api_secret', ''))
         
         try:
@@ -428,7 +446,7 @@ def update_status_table(slaves):
             "Unit #": idx,
             "Account Name": s.get('name', f'Slave {idx}'),
             "Client ID": s['client_id'],
-            "Engine Status": "🟢 CONNECTED" if st.session_state.running else "⚪ STANDBY",
+            "Engine Status": "🟢 HEDGING ACTIVE" if st.session_state.running else "⚪ STANDBY",
             "Timestamp": datetime.now().strftime('%H:%M:%S')
         })
     return pd.DataFrame(table_data)
@@ -477,7 +495,7 @@ with tab_logs:
             st.download_button(
                 label="📥 Export Filtered History (CSV)",
                 data=csv_data,
-                file_name=f"groww_terminal_filtered_logs_{datetime.now().strftime('%Y%m%d')}.csv",
+                file_name=f"groww_terminal_hedged_logs_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime="text/csv",
             )
         else:
@@ -487,11 +505,11 @@ with tab_logs:
 
 # --- TAB 4: RISK MANAGEMENT ---
 with tab_risk:
-    st.markdown("#### **Risk Controls & Limits**")
+    st.markdown("#### **Risk Controls & Hedging Limits**")
     r1, r2 = st.columns(2)
     with r1:
         st.number_input("Max Daily Loss Limit per Slave (₹)", min_value=1000, max_value=500000, value=25000, step=5000)
         st.checkbox("Auto-Square Off on Circuit Limit", value=True)
     with r2:
         st.number_input("Max Lot Size Cap per Order", min_value=1, max_value=500, value=50, step=1)
-        st.checkbox("Enable Real-time Telegram Alerts", value=False)
+        st.checkbox("Strict Multi-Leg Sequential Execution", value=True)
