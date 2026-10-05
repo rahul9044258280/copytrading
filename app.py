@@ -190,7 +190,7 @@ tab_config, tab_dashboard, tab_logs, tab_reports, tab_risk = st.tabs([
 # --- TAB 1: CONFIGURATION & SETTINGS ---
 with tab_config:
     st.markdown("#### **Master & Slave Fleet Management**")
-    st.write("Yahan aap Master account setup karein aur har Slave ke liye **On/Off status, Fixed Multiplier/Lot Size aur Delete** manage karein.")
+    st.write("Yahan aap Master account setup karein aur har Slave ke liye **On/Off status, Fixed Multiplier (+/- buttons ke sath) aur Delete** manage karein.")
     
     m_saved = saved_data.get("master", {})
     master_client_id = st.text_input("Master Client ID", value=m_saved.get("client_id", ""))
@@ -232,12 +232,12 @@ with tab_config:
         with c4:
             s_api_secret = st.text_input(f"Token {idx}", type="password", value=s.get("api_secret", ""), key=f"s_sec_{idx}")
         with c5:
-            s_param = st.number_input(f"Multiplier/Qty {idx}", min_value=0.1, value=float(s.get("param", 1.0)), step=0.5, key=f"s_param_{idx}")
+            # st.number_input has native +/- stepper buttons
+            s_param = st.number_input(f"Multiplier {idx}", min_value=0.1, max_value=100.0, value=float(s.get("param", 1.0)), step=0.5, key=f"s_param_{idx}")
         with c6:
             st.markdown("<br>", unsafe_allow_html=True)
             s_active = st.toggle(f"Active {idx}", value=s.get("active", True), key=f"s_active_{idx}")
 
-        # Delete button row separately for clean layout
         del_col1, _ = st.columns([1, 5])
         with del_col1:
             if st.button("🗑️ Delete Account", key=f"del_{idx}"):
@@ -254,7 +254,6 @@ with tab_config:
             })
         st.markdown("---")
 
-    # Handle deletion if any delete button was clicked
     if indices_to_delete:
         for i in sorted(indices_to_delete, reverse=True):
             del st.session_state.slaves_list[i]
@@ -272,9 +271,8 @@ with tab_config:
         }
         save_config(config_data)
         st.session_state.slaves_list = updated_slaves
-        st.success("✅ Saari configuration, individual toggles aur delete changes successfully save ho gaye hain!")
+        st.success("✅ Saari configuration, multiplier values aur delete changes successfully save ho gaye hain!")
 
-# Load configurations for execution tabs if not set in scope
 if 'master_client_id' not in locals():
     m_saved = saved_data.get("master", {})
     master_client_id = m_saved.get("client_id", "")
@@ -285,7 +283,6 @@ if 'master_client_id' not in locals():
 if 'slave_details' not in locals():
     slave_details = st.session_state.get("slaves_list", saved_data.get("slaves", []))
 
-# --- Robust v2 Dhan Fund Balance Fetcher with JSON Validation ---
 def fetch_dhan_fund_balance(client_id, api_secret):
     if not client_id or not api_secret:
         return 0.0, "Credentials Missing"
@@ -369,13 +366,11 @@ def check_and_refresh_session(client_id, api_key, api_secret):
     except Exception as e:
         return False, str(e)
 
-# --- Fixed Multiplier Quantity Calculation ---
 def calculate_slave_quantity(master_qty, slave_config):
     param = float(slave_config.get("param", 1.0))
     calculated_qty = int(master_qty * param)
     return max(calculated_qty, 1)
 
-# --- Execution Worker respecting Individual ON/OFF Switch ---
 def execute_dynamic_basket_trade(slave, basket_legs, master_qty_base, order_unique_hash):
     if not slave.get('active', True):
         return False, f"Slave {slave['client_id']} is turned OFF (Skipped)"
@@ -385,7 +380,6 @@ def execute_dynamic_basket_trade(slave, basket_legs, master_qty_base, order_uniq
     
     try:
         time.sleep(0.08)
-        
         for leg in basket_legs:
             orig_qty = leg.get('quantity', 50)
             scaled_qty = calculate_slave_quantity(orig_qty, slave)
@@ -396,7 +390,7 @@ def execute_dynamic_basket_trade(slave, basket_legs, master_qty_base, order_uniq
                 leg.get('symbol', 'NIFTY SPREAD'), 
                 scaled_qty, 
                 "SUCCESS", 
-                f"Executed for {slave['name']} (Qty: {scaled_qty}, Fixed Multiplier)", 
+                f"Executed for {slave['name']} (Qty: {scaled_qty}, Multiplier)", 
                 pnl=0.0
             )
         return True, slave['client_id']
@@ -504,7 +498,7 @@ with tab_dashboard:
     df_status = update_status_table(slave_details)
     status_table_placeholder.dataframe(df_status, use_container_width=True)
 
-# --- TAB 3: ORDER AUDIT LOGS WITH ADVANCED FILTERS ---
+# --- TAB 3: ORDER AUDIT LOGS ---
 with tab_logs:
     st.markdown("#### **Audit Logs & Advanced Filters**")
     
