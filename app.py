@@ -179,12 +179,18 @@ if 'running' not in st.session_state:
     st.session_state.running = False
 
 # --- Main Dashboard Tabs ---
-tab_config, tab_dashboard, tab_logs, tab_risk = st.tabs(["⚙️ Terminal Setup & Settings", "📊 Live Trading Dashboard", "📜 Order Audit Logs", "🛡 Risk Management"])
+tab_config, tab_dashboard, tab_logs, tab_reports, tab_risk = st.tabs([
+    "⚙️ Terminal Setup & Settings", 
+    "📊 Live Trading Dashboard", 
+    "📜 Order Audit Logs", 
+    "📈 Financial Reports", 
+    "🛡 Risk Management"
+])
 
 # --- TAB 1: CONFIGURATION & SETTINGS ---
 with tab_config:
     st.markdown("#### **Master & Slave Fleet Management**")
-    st.write("Yahan aap Master account setup karein aur har Slave ke liye **On/Off status, Dynamic Lot sizing aur Delete** manage karein.")
+    st.write("Yahan aap Master account setup karein aur har Slave ke liye **On/Off status, Fixed Multiplier/Lot Size aur Delete** manage karein.")
     
     m_saved = saved_data.get("master", {})
     master_client_id = st.text_input("Master Client ID", value=m_saved.get("client_id", ""))
@@ -205,7 +211,6 @@ with tab_config:
             "client_id": "",
             "api_key": "",
             "api_secret": "",
-            "mode": "Fixed Multiplier",
             "param": 1.0,
             "active": True
         })
@@ -216,7 +221,7 @@ with tab_config:
 
     for idx, s in enumerate(st.session_state.slaves_list):
         st.markdown(f"**Slave Unit #{idx + 1}**")
-        c1, c2, c3, c4, c5, c6, c7 = st.columns([1.5, 1.2, 1.2, 1.5, 1.2, 0.8, 0.8])
+        c1, c2, c3, c4, c5, c6 = st.columns([1.5, 1.2, 1.2, 1.5, 1.0, 0.8])
         
         with c1:
             s_name = st.text_input(f"Name {idx}", value=s.get("name", f"Slave {idx+1}"), key=f"s_name_{idx}")
@@ -227,13 +232,15 @@ with tab_config:
         with c4:
             s_api_secret = st.text_input(f"Token {idx}", type="password", value=s.get("api_secret", ""), key=f"s_sec_{idx}")
         with c5:
-            sizing_mode = st.selectbox(f"Mode {idx}", ["Fixed Multiplier", "Capital Ratio"], index=0 if s.get("mode")=="Fixed Multiplier" else 1, key=f"s_mode_{idx}")
-            s_param = st.number_input(f"Val {idx}", min_value=0.1, value=float(s.get("param", 1.0)), step=0.5, key=f"s_param_{idx}")
+            s_param = st.number_input(f"Multiplier/Qty {idx}", min_value=0.1, value=float(s.get("param", 1.0)), step=0.5, key=f"s_param_{idx}")
         with c6:
-            s_active = st.toggle(f"Active {idx}", value=s.get("active", True), key=f"s_active_{idx}")
-        with c7:
             st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("🗑️ Delete", key=f"del_{idx}"):
+            s_active = st.toggle(f"Active {idx}", value=s.get("active", True), key=f"s_active_{idx}")
+
+        # Delete button row separately for clean layout
+        del_col1, _ = st.columns([1, 5])
+        with del_col1:
+            if st.button("🗑️ Delete Account", key=f"del_{idx}"):
                 indices_to_delete.append(idx)
 
         if s_client_id:
@@ -242,7 +249,6 @@ with tab_config:
                 "client_id": s_client_id,
                 "api_key": s_api_key,
                 "api_secret": s_api_secret,
-                "mode": sizing_mode,
                 "param": s_param,
                 "active": s_active
             })
@@ -312,7 +318,7 @@ def fetch_dhan_fund_balance(client_id, api_secret):
     except Exception as e:
         return 0.0, f"Error"
 
-# --- TAB 2: LIVE TRADING DASHBOARD & FINANCIAL REPORTS ---
+# --- TAB 2: LIVE TRADING DASHBOARD ---
 with tab_dashboard:
     st.markdown("#### **Control & Operations Center**")
     
@@ -344,16 +350,6 @@ with tab_dashboard:
     }])
     st.dataframe(m_display_df, use_container_width=True)
 
-    st.markdown("### 📊 Slave Accounts Detailed Financial & Performance Report")
-    
-    d_col1, d_col2 = st.columns(2)
-    with d_col1:
-        start_date = st.date_input("From Date", value=date.today())
-    with d_col2:
-        end_date = st.date_input("To Date", value=date.today())
-
-    slave_report_placeholder = st.empty()
-
     st.markdown("### 📋 Active Fleet Telemetry")
     status_table_placeholder = st.empty()
 
@@ -373,26 +369,14 @@ def check_and_refresh_session(client_id, api_key, api_secret):
     except Exception as e:
         return False, str(e)
 
-# --- Dynamic Lot Calculation & Matching Engine ---
-def calculate_slave_quantity(master_qty, slave_config, master_capital_base):
-    mode = slave_config.get("mode", "Fixed Multiplier")
+# --- Fixed Multiplier Quantity Calculation ---
+def calculate_slave_quantity(master_qty, slave_config):
     param = float(slave_config.get("param", 1.0))
-    
-    if mode == "Fixed Multiplier":
-        calculated_qty = int(master_qty * param)
-    else:
-        slave_cap = param
-        m_cap = master_capital_base if master_capital_base > 0 else 100000.0
-        ratio = slave_cap / m_cap
-        calculated_qty = int(round(master_qty * ratio))
-    
+    calculated_qty = int(master_qty * param)
     return max(calculated_qty, 1)
 
 # --- Execution Worker respecting Individual ON/OFF Switch ---
 def execute_dynamic_basket_trade(slave, basket_legs, master_qty_base, order_unique_hash):
-    """
-    Check karta hai ki slave active (ON) hai ya nahi. Agar OFF hai toh trade skip kar deta hai.
-    """
     if not slave.get('active', True):
         return False, f"Slave {slave['client_id']} is turned OFF (Skipped)"
 
@@ -404,7 +388,7 @@ def execute_dynamic_basket_trade(slave, basket_legs, master_qty_base, order_uniq
         
         for leg in basket_legs:
             orig_qty = leg.get('quantity', 50)
-            scaled_qty = calculate_slave_quantity(orig_qty, slave, master_capital)
+            scaled_qty = calculate_slave_quantity(orig_qty, slave)
             
             log_trade_to_db(
                 slave['client_id'], 
@@ -412,7 +396,7 @@ def execute_dynamic_basket_trade(slave, basket_legs, master_qty_base, order_uniq
                 leg.get('symbol', 'NIFTY SPREAD'), 
                 scaled_qty, 
                 "SUCCESS", 
-                f"Executed for {slave['name']} (Qty: {scaled_qty}, Margin Benefit)", 
+                f"Executed for {slave['name']} (Qty: {scaled_qty}, Fixed Multiplier)", 
                 pnl=0.0
             )
         return True, slave['client_id']
@@ -517,9 +501,6 @@ def update_status_table(slaves):
     return pd.DataFrame(table_data)
 
 with tab_dashboard:
-    df_report = get_slave_financial_report(slave_details, start_date, end_date)
-    slave_report_placeholder.dataframe(df_report, use_container_width=True)
-    
     df_status = update_status_table(slave_details)
     status_table_placeholder.dataframe(df_status, use_container_width=True)
 
@@ -568,7 +549,20 @@ with tab_logs:
     except Exception as e:
         st.warning(f"Database error: {e}")
 
-# --- TAB 4: RISK MANAGEMENT ---
+# --- TAB 4: FINANCIAL REPORTS ---
+with tab_reports:
+    st.markdown("#### **📊 Slave Accounts Detailed Financial & Performance Report**")
+    
+    d_col1, d_col2 = st.columns(2)
+    with d_col1:
+        start_date = st.date_input("From Date", value=date.today(), key="rep_start_date")
+    with d_col2:
+        end_date = st.date_input("To Date", value=date.today(), key="rep_end_date")
+
+    df_report = get_slave_financial_report(slave_details, start_date, end_date)
+    st.dataframe(df_report, use_container_width=True)
+
+# --- TAB 5: RISK MANAGEMENT ---
 with tab_risk:
     st.markdown("#### **Risk Controls & Fleet Rules**")
     r1, r2 = st.columns(2)
