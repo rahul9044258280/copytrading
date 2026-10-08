@@ -355,17 +355,21 @@ def execute_single_slave_order(slave, order_item):
         return False, f"Slave {slave['client_id']} OFF"
     
     try:
+        qty = calculate_slave_quantity(int(order_item.get("quantity", 1)), slave)
+        
         order_payload = {
-            "dhanClientId": slave['client_id'],
-            "correlationId": order_item.get("correlationId", "1"),
+            "dhanClientId": slave['client_id'].strip(),
+            "correlationId": str(order_item.get("correlationId", "1")),
             "transactionType": order_item.get("transactionType", "BUY"),
             "exchangeSegment": order_item.get("exchangeSegment", "NSE_EQ"),
             "productType": order_item.get("productType", "INTRADAY"),
             "orderType": order_item.get("orderType", "MARKET"),
             "validity": "DAY",
-            "securityId": order_item.get("securityId", ""),
-            "quantity": calculate_slave_quantity(int(order_item.get("quantity", 1)), slave),
-            "price": order_item.get("price", 0)
+            "securityId": str(order_item.get("securityId", "")),
+            "quantity": int(qty),
+            "price": float(order_item.get("price", 0)),
+            "disclosedQuantity": 0,
+            "triggerPrice": float(order_item.get("triggerPrice", 0))
         }
         
         url = "https://api.dhan.co/v2/orders"
@@ -375,7 +379,7 @@ def execute_single_slave_order(slave, order_item):
             "Content-Type": "application/json"
         }
         
-        resp = requests.post(url, headers=headers, json=order_payload, timeout=2)
+        resp = requests.post(url, headers=headers, json=order_payload, timeout=3)
         
         if resp.status_code in [200, 201]:
             log_trade_to_db(
@@ -388,15 +392,16 @@ def execute_single_slave_order(slave, order_item):
             )
             return True, slave['client_id']
         else:
+            err_msg = resp.text[:150]
             log_trade_to_db(
                 slave['client_id'], 
                 order_item.get("transactionType", "BUY"), 
                 order_item.get("tradingSymbol", "NIFTY/STK"), 
                 order_payload["quantity"], 
-                "SUCCESS (Simulated)", 
-                f"Mirror executed code {resp.status_code}"
+                "FAILED (400)", 
+                f"Err: {err_msg}"
             )
-            return True, slave['client_id']
+            return False, f"{slave['client_id']}: {err_msg}"
     except Exception as e:
         log_trade_to_db(slave['client_id'], "ERROR", "NIFTY", 0, "FAILED", str(e))
         return False, f"{slave['client_id']}: {str(e)}"
