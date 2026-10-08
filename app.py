@@ -357,16 +357,16 @@ def execute_single_slave_order(slave, order_item):
     try:
         qty = calculate_slave_quantity(int(order_item.get("quantity", 1)), slave)
         
-        ex_seg = order_item.get("exchangeSegment", "NSE_FNO")
-        if not ex_seg or ex_seg == "None":
+        ex_seg = order_item.get("exchangeSegment")
+        if not ex_seg or ex_seg not in ["NSE_EQ", "NSE_FNO", "BSE_EQ", "BSE_FNO", "MCX_COMM"]:
             ex_seg = "NSE_FNO"
             
-        prod_type = order_item.get("productType", "INTRADAY")
-        if not prod_type or prod_type == "None":
+        prod_type = order_item.get("productType")
+        if not prod_type or prod_type not in ["INTRADAY", "CNC", "MARGIN", "MTF"]:
             prod_type = "INTRADAY"
             
-        ord_type = order_item.get("orderType", "MARKET")
-        if not ord_type or ord_type == "None":
+        ord_type = order_item.get("orderType")
+        if not ord_type or ord_type not in ["MARKET", "LIMIT", "STOP_LOSS", "STOP_LOSS_MARKET"]:
             ord_type = "MARKET"
             
         price_val = float(order_item.get("price", 0))
@@ -401,26 +401,26 @@ def execute_single_slave_order(slave, order_item):
             log_trade_to_db(
                 slave['client_id'], 
                 order_item.get("transactionType", "BUY"), 
-                order_item.get("tradingSymbol", "NIFTY/STK"), 
+                order_item.get("tradingSymbol", "NIFTY"), 
                 order_payload["quantity"], 
                 "SUCCESS", 
                 f"Copied for {slave['name']}"
             )
             return True, slave['client_id']
         else:
-            err_msg = resp.text[:200]
+            err_msg = f"Payload: {json.dumps(order_payload)} | Resp: {resp.text[:250]}"
             log_trade_to_db(
                 slave['client_id'], 
                 order_item.get("transactionType", "BUY"), 
-                order_item.get("tradingSymbol", "NIFTY/STK"), 
+                order_item.get("tradingSymbol", "NIFTY"), 
                 order_payload["quantity"], 
-                "FAILED (400)", 
-                f"Err: {err_msg}"
+                f"FAILED ({resp.status_code})", 
+                err_msg
             )
-            return False, f"{slave['client_id']}: {err_msg}"
+            return False, err_msg
     except Exception as e:
         log_trade_to_db(slave['client_id'], "ERROR", "NIFTY", 0, "FAILED", str(e))
-        return False, f"{slave['client_id']}: {str(e)}"
+        return False, str(e)
 
 def process_master_orders_realtime(master_res, active_slaves):
     orders_list = []
@@ -431,7 +431,6 @@ def process_master_orders_realtime(master_res, active_slaves):
         
     for order in orders_list:
         order_id = order.get("orderId") or order.get("correlationId")
-        order_status = order.get("orderStatus", "")
         
         if order_id:
             order_hash = f"{order_id}_{order.get('securityId')}"
