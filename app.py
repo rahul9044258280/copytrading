@@ -11,7 +11,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 CONFIG_FILE = "config.json"
 DB_FILE = "trade_history.db"
 
-# --- Database Setup with Idempotency Table ---
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -80,10 +79,8 @@ def save_config(data):
 
 saved_data = load_config()
 
-# Page Configuration
 st.set_page_config(page_title="Groww Pro | Ultra-Fast Copy Trading Terminal", page_icon="📈", layout="wide")
 
-# --- Groww Style + Cinematic Background CSS ---
 st.markdown("""
     <style>
     .stApp {
@@ -93,11 +90,9 @@ st.markdown("""
         color: #f3f4f6;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
-
     div.block-container {
         padding-top: 1rem;
     }
-
     div[data-testid="stMetric"] {
         background: rgba(17, 24, 39, 0.7);
         border: 1px solid rgba(255, 255, 255, 0.08);
@@ -118,7 +113,6 @@ st.markdown("""
         font-weight: 700;
         font-size: 1.6rem;
     }
-
     .stButton button[kind="primary"] {
         background-color: #00D09C !important;
         color: #0b0f19 !important;
@@ -132,7 +126,6 @@ st.markdown("""
         background-color: #00b085 !important;
         box-shadow: 0 0 15px rgba(0, 208, 156, 0.5);
     }
-    
     .stButton button[kind="secondary"] {
         background-color: rgba(239, 68, 68, 0.15) !important;
         color: #ef4444 !important;
@@ -143,13 +136,11 @@ st.markdown("""
     .stButton button[kind="secondary"]:hover {
         background-color: rgba(239, 68, 68, 0.3) !important;
     }
-
     h1, h2, h3, h4 {
         color: #ffffff;
         font-weight: 700;
         letter-spacing: -0.5px;
     }
-
     div[data-testid="stDataFrame"] {
         background: rgba(17, 24, 39, 0.5);
         border: 1px solid rgba(255, 255, 255, 0.08);
@@ -159,7 +150,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Top Header Navbar ---
 nav1, nav2, nav3, nav4 = st.columns([2.5, 1, 1, 1])
 with nav1:
     st.markdown("### 📈 GROWW TERMINAL <span style='color: #00D09C; font-size: 1rem;'>ULTRA-FAST FLEET ENGINE</span>", unsafe_allow_html=True)
@@ -175,7 +165,6 @@ st.markdown("---")
 if 'running' not in st.session_state:
     st.session_state.running = False
 
-# --- Main Dashboard Tabs ---
 tab_config, tab_dashboard, tab_logs, tab_reports, tab_risk = st.tabs([
     "⚙️ Terminal Setup & Settings", 
     "📊 Live Trading Dashboard", 
@@ -184,10 +173,8 @@ tab_config, tab_dashboard, tab_logs, tab_reports, tab_risk = st.tabs([
     "🛡 Risk Management"
 ])
 
-# --- TAB 1: CONFIGURATION & SETTINGS ---
 with tab_config:
     st.markdown("#### **Master & Slave Fleet Management**")
-    st.write("Yahan aap Master account setup karein aur har Slave ke liye **On/Off status, Multiplier aur Delete** manage karein.")
     
     m_saved = saved_data.get("master", {})
     master_client_id = st.text_input("Master Client ID", value=m_saved.get("client_id", ""))
@@ -262,7 +249,6 @@ with tab_config:
         st.session_state.slaves_list = updated_slaves
         st.success("✅ Saari configuration save ho gayi hai!")
 
-# Load configurations
 if 'master_client_id' not in locals():
     m_saved = saved_data.get("master", {})
     master_client_id = m_saved.get("client_id", "")
@@ -300,10 +286,9 @@ def fetch_dhan_fund_balance(client_id, api_secret):
     except Exception:
         return 0.0, "Error"
 
-# --- Fetch Master Live Orders for Millisecond Copying ---
 def fetch_master_orders(client_id, api_secret):
     if not client_id or not api_secret:
-        return []
+        return {"error": "Credentials Missing"}
     try:
         url = "https://api.dhan.co/v2/orders"
         headers = {
@@ -311,29 +296,31 @@ def fetch_master_orders(client_id, api_secret):
             "access-token": api_secret.strip(),
             "Content-Type": "application/json"
         }
-        response = requests.get(url, headers=headers, timeout=2)
+        response = requests.get(url, headers=headers, timeout=4)
         if response.status_code == 200:
-            res_json = response.json()
-            # Dhan returns a list of orders in data field or directly
-            if isinstance(res_json, list):
-                return res_json
-            elif isinstance(res_json, dict):
-                return res_json.get("data", [])
-        return []
-    except Exception:
-        return []
+            return response.json()
+        else:
+            return {"status_code": response.status_code, "text": response.text}
+    except Exception as e:
+        return {"exception": str(e)}
 
-# --- TAB 2: LIVE TRADING DASHBOARD ---
 with tab_dashboard:
     st.markdown("#### **Control & Operations Center**")
     
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
         start_engine = st.button("▶ START COPY TRADING", type="primary", use_container_width=True)
     with c2:
         stop_engine = st.button("🛑 STOP ENGINE", type="secondary", use_container_width=True)
     with c3:
-        emergency_kill = st.button("🚨 EMERGENCY KILL SWITCH", type="primary", use_container_width=True)
+        emergency_kill = st.button("🚨 EMERGENCY KILL", type="primary", use_container_width=True)
+    with c4:
+        debug_button = st.button("🔍 DEBUG MASTER ORDERS", use_container_width=True)
+
+    if debug_button:
+        st.markdown("##### 🧪 Master Orders API Raw Response Check")
+        raw_res = fetch_master_orders(master_client_id, master_api_secret)
+        st.json(raw_res)
 
     st.markdown("---")
     
@@ -358,34 +345,16 @@ with tab_dashboard:
     st.markdown("### 📋 Active Fleet Telemetry")
     status_table_placeholder = st.empty()
 
-def check_and_refresh_session(client_id, api_key, api_secret):
-    try:
-        url = f"https://auth.dhan.co/app/generate-consent?client_id={client_id}"
-        headers = {
-            "app_id": api_key,
-            "app_secret": api_secret,
-            "Content-Type": "application/json"
-        }
-        response = requests.post(url, headers=headers, timeout=5)
-        if response.status_code == 200:
-            return True, "Healthy"
-        else:
-            return False, f"Error {response.status_code}"
-    except Exception as e:
-        return False, str(e)
-
 def calculate_slave_quantity(master_qty, slave_config):
     param = float(slave_config.get("param", 1.0))
     calculated_qty = int(master_qty * param)
     return max(calculated_qty, 1)
 
-# --- Ultra-Fast Parallel Slave Order Execution Worker ---
 def execute_single_slave_order(slave, order_item):
     if not slave.get('active', True):
         return False, f"Slave {slave['client_id']} OFF"
     
     try:
-        # Construct Dhan API Order Payload for Slave
         order_payload = {
             "dhanClientId": slave['client_id'],
             "correlationId": order_item.get("correlationId", "1"),
@@ -406,7 +375,6 @@ def execute_single_slave_order(slave, order_item):
             "Content-Type": "application/json"
         }
         
-        # Hitting slave broker API
         resp = requests.post(url, headers=headers, json=order_payload, timeout=2)
         
         if resp.status_code in [200, 201]:
@@ -416,38 +384,40 @@ def execute_single_slave_order(slave, order_item):
                 order_item.get("tradingSymbol", "NIFTY/STK"), 
                 order_payload["quantity"], 
                 "SUCCESS", 
-                f"Copied in milliseconds for {slave['name']}"
+                f"Copied for {slave['name']}"
             )
             return True, slave['client_id']
         else:
-            # Fallback log for simulation or api response errors
             log_trade_to_db(
                 slave['client_id'], 
                 order_item.get("transactionType", "BUY"), 
                 order_item.get("tradingSymbol", "NIFTY/STK"), 
                 order_payload["quantity"], 
                 "SUCCESS (Simulated)", 
-                f"Mirror executed (Code {resp.status_code})"
+                f"Mirror executed code {resp.status_code}"
             )
             return True, slave['client_id']
     except Exception as e:
         log_trade_to_db(slave['client_id'], "ERROR", "NIFTY", 0, "FAILED", str(e))
         return False, f"{slave['client_id']}: {str(e)}"
 
-# --- Master Order Poll & Copy Engine ---
-def process_master_orders_realtime(master_orders, active_slaves):
-    for order in master_orders:
+def process_master_orders_realtime(master_res, active_slaves):
+    orders_list = []
+    if isinstance(master_res, list):
+        orders_list = master_res
+    elif isinstance(master_res, dict):
+        orders_list = master_res.get("data", [])
+        
+    for order in orders_list:
         order_id = order.get("orderId") or order.get("correlationId")
         order_status = order.get("orderStatus", "")
         
-        # Sirf executed/traded orders ko turant copy karein
-        if order_id and order_status in ["TRANSIT", "PENDING", "TRADED", "SUCCESS"]:
+        if order_id:
             order_hash = f"{order_id}_{order.get('securityId')}"
             
             if not is_order_processed(order_hash):
                 mark_order_processed(order_hash)
                 
-                # Multi-threaded execution across all active slaves for <50ms speed
                 with ThreadPoolExecutor(max_workers=10) as executor:
                     futures = [executor.submit(execute_single_slave_order, slave, order) for slave in active_slaves if slave.get('active', True)]
                     for future in as_completed(futures):
@@ -464,18 +434,17 @@ if 'start_engine' in locals() and start_engine:
         st.error("⚠ Kam se kam ek Slave account jodein!")
     else:
         st.session_state.running = True
-        st.success("🚀 Ultra-Fast Copy Trading Engine Started! Listening to Master orders...")
+        st.success("🚀 Ultra-Fast Copy Trading Engine Started!")
 
 if 'stop_engine' in locals() and stop_engine:
     st.session_state.running = False
     st.warning("⚠ Engine pause kar diya gaya hai.")
 
-# Background Polling trigger for live copying when engine is running
 if st.session_state.running:
     active_slaves_list = [s for s in slave_details if s.get('active', True)]
-    master_live_orders = fetch_master_orders(master_client_id, master_api_secret)
-    if master_live_orders:
-        process_master_orders_realtime(master_live_orders, active_slaves_list)
+    master_raw_data = fetch_master_orders(master_client_id, master_api_secret)
+    if master_raw_data:
+        process_master_orders_realtime(master_raw_data, active_slaves_list)
 
 def get_slave_financial_report(slaves, start_d, end_d):
     report_data = []
@@ -523,7 +492,6 @@ with tab_dashboard:
     df_status = update_status_table(slave_details)
     status_table_placeholder.dataframe(df_status, use_container_width=True)
 
-# --- TAB 3: ORDER AUDIT LOGS ---
 with tab_logs:
     st.markdown("#### **Audit Logs & Execution Speed Records**")
     try:
@@ -533,11 +501,10 @@ with tab_logs:
         if not df_history.empty:
             st.dataframe(df_history, use_container_width=True)
         else:
-            st.info("📭 Abhi tak koi order log nahi hua hai. Master me trade execute karein.")
+            st.info("📭 Abhi tak koi order log nahi hua hai.")
     except Exception as e:
         st.warning(f"Database error: {e}")
 
-# --- TAB 4: FINANCIAL REPORTS ---
 with tab_reports:
     st.markdown("#### **📊 Financial & Performance Report**")
     d_col1, d_col2 = st.columns(2)
@@ -549,7 +516,6 @@ with tab_reports:
     df_report = get_slave_financial_report(slave_details, start_date, end_date)
     st.dataframe(df_report, use_container_width=True)
 
-# --- TAB 5: RISK MANAGEMENT ---
 with tab_risk:
     st.markdown("#### **Risk Controls & Fleet Rules**")
     r1, r2 = st.columns(2)
@@ -558,7 +524,6 @@ with tab_risk:
     with r2:
         st.number_input("Max Lot Size Cap per Order", min_value=1, max_value=500, value=50, step=1)
 
-# --- Auto Refresh Trigger for Millisecond Sync Loop ---
 if auto_refresh_sec != "Off" and st.session_state.running:
     time.sleep(float(auto_refresh_sec))
     st.rerun()
