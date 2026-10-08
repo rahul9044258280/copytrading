@@ -357,17 +357,33 @@ def execute_single_slave_order(slave, order_item):
     try:
         qty = calculate_slave_quantity(int(order_item.get("quantity", 1)), slave)
         
+        ex_seg = order_item.get("exchangeSegment", "NSE_FNO")
+        if not ex_seg or ex_seg == "None":
+            ex_seg = "NSE_FNO"
+            
+        prod_type = order_item.get("productType", "INTRADAY")
+        if not prod_type or prod_type == "None":
+            prod_type = "INTRADAY"
+            
+        ord_type = order_item.get("orderType", "MARKET")
+        if not ord_type or ord_type == "None":
+            ord_type = "MARKET"
+            
+        price_val = float(order_item.get("price", 0))
+        if ord_type == "MARKET":
+            price_val = 0.0
+
         order_payload = {
             "dhanClientId": slave['client_id'].strip(),
-            "correlationId": str(order_item.get("correlationId", "1")),
+            "correlationId": str(order_item.get("correlationId", "1"))[:30],
             "transactionType": order_item.get("transactionType", "BUY"),
-            "exchangeSegment": order_item.get("exchangeSegment", "NSE_EQ"),
-            "productType": order_item.get("productType", "INTRADAY"),
-            "orderType": order_item.get("orderType", "MARKET"),
+            "exchangeSegment": ex_seg,
+            "productType": prod_type,
+            "orderType": ord_type,
             "validity": "DAY",
             "securityId": str(order_item.get("securityId", "")),
             "quantity": int(qty),
-            "price": float(order_item.get("price", 0)),
+            "price": price_val,
             "disclosedQuantity": 0,
             "triggerPrice": float(order_item.get("triggerPrice", 0))
         }
@@ -392,7 +408,7 @@ def execute_single_slave_order(slave, order_item):
             )
             return True, slave['client_id']
         else:
-            err_msg = resp.text[:150]
+            err_msg = resp.text[:200]
             log_trade_to_db(
                 slave['client_id'], 
                 order_item.get("transactionType", "BUY"), 
