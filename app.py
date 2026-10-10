@@ -1,11 +1,12 @@
 import streamlit as st
 import pandas as pd
-import yfinance as yf
+import asyncio
+import aiohttp
 from datetime import datetime, timezone, timedelta
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-# --- IST TIMEZONE CONFIGURATION (UTC +5:30) ---
+# --- IST TIMEZONE (UTC +5:30) ---
 IST = timezone(timedelta(hours=5, minutes=30))
 
 def get_ist_time():
@@ -13,17 +14,17 @@ def get_ist_time():
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="ORB Breakout Terminal",
+    page_title="Institutional Pro Intraday Terminal",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# --- CINEMATIC MATRIX & CARD STYLING ---
+# --- HIGH-PERFORMANCE CINEMATIC CSS ---
 st.markdown("""
     <style>
     .stApp {
-        background-color: #0b0f19;
+        background-color: #07090e;
         color: #f3f4f6;
         font-family: 'Inter', sans-serif;
     }
@@ -32,17 +33,17 @@ st.markdown("""
     header {visibility: hidden;}
 
     .matrix-card {
-        background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
-        border: 1px solid #374151;
-        padding: 16px;
-        border-radius: 12px;
-        box-shadow: 0 6px 16px rgba(0,0,0,0.4);
-        margin-bottom: 12px;
-        transition: transform 0.2s ease;
+        background: linear-gradient(135deg, #0d1322 0%, #161f33 100%);
+        border: 1px solid #1f293d;
+        padding: 14px;
+        border-radius: 10px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+        margin-bottom: 10px;
+        transition: all 0.15s ease;
     }
     .matrix-card:hover {
         border-color: #10b981;
-        transform: translateY(-2px);
+        transform: translateY(-1px);
     }
     
     .stButton>button {
@@ -50,9 +51,9 @@ st.markdown("""
         background: linear-gradient(135deg, #10b981 0%, #059669 100%);
         color: white;
         font-weight: 700;
-        border-radius: 8px;
+        border-radius: 6px;
         border: none;
-        padding: 10px;
+        padding: 8px;
         box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
     }
     .stButton>button:hover {
@@ -61,20 +62,20 @@ st.markdown("""
 
     .stTabs [data-baseweb="tab-list"] {
         gap: 6px;
-        background-color: #111827;
-        padding: 6px;
-        border-radius: 10px;
-        border: 1px solid #1f2937;
+        background-color: #0d1322;
+        padding: 4px;
+        border-radius: 8px;
+        border: 1px solid #1f293d;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #1f2937 !important;
+        background-color: #161f33 !important;
         color: #10b981 !important;
         border: 1px solid #374151;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- COMPLETE NSE SECTOR UNIVERSE ---
+# --- COMPENSIVE SECTOR UNIVERSE ---
 SECTOR_MAP = {
     "IT & Technology": ["TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "LTIM.NS", "MPHASIS.NS", "COFORGE.NS", "PERSISTENT.NS", "OFSS.NS"],
     "Banking & Financials": ["HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "KOTAKBANK.NS", "AXISBANK.NS", "INDUSINDBK.NS", "BAJFINANCE.NS", "BAJAJFINSV.NS", "PNB.NS", "BANKBARODA.NS"],
@@ -84,293 +85,207 @@ SECTOR_MAP = {
     "Metal & Infrastructure": ["TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS", "VEDL.NS", "GRASIM.NS", "ADANIENT.NS", "LT.NS", "JINDALSTEL.NS"]
 }
 
-# --- ADVANCED INTRA-DAY 5M & ORB FETCHER ---
-def fetch_orb_data(ticker):
+# --- ULTRA-FAST MULTI-THREADED MARKET FETCH ENGINE ---
+import yfinance as yf
+
+def fetch_stock_fast(ticker):
     try:
-        stock = yf.Ticker(ticker)
-        # Intraday 5-minute data for today
-        df = stock.history(period="1d", interval="5m")
-        if df is not None and not df.empty:
-            # Filter for IST session or check latest candles
-            # 9:15 to 9:30 candles form the ORB range (First 3 candles of 5m interval)
-            morning_candles = df.between_time("09:15", "09:30")
-            
-            if len(morning_candles) >= 2:
-                orb_high = morning_candles['High'].max()
-                orb_low = morning_candles['Low'].min()
-                
-                # Current Live Price / Last Candle
-                latest_candle = df.iloc[-1]
-                curr_price = latest_candle['Close']
-                prev_close = df['Open'].iloc[0] # Approximate prev/open base
-                change_pct = ((curr_price - df['Close'].iloc[0]) / df['Close'].iloc[0]) * 100
-                
-                breakout_status = "NO TRADE"
-                if curr_price > orb_high:
-                    breakout_status = "BULLISH BREAKOUT 🚀"
-                elif curr_price < orb_low:
-                    breakout_status = "BEARISH BREAKDOWN 🔻"
-
-                return {
-                    "Symbol": ticker.replace(".NS", ""),
-                    "LTP": round(curr_price, 2),
-                    "ORB High": round(orb_high, 2),
-                    "ORB Low": round(orb_low, 2),
-                    "Change (%)": round(change_pct, 2),
-                    "Status": breakout_status,
-                    "Volume": int(latest_candle['Volume'])
-                }
-    except Exception:
-        return None
-    return None
-
-# --- PARALLEL SCANNER FOR ORB ---
-def run_orb_scan(tickers):
-    start_time = time.time()
-    with ThreadPoolExecutor(max_workers=40) as executor:
-        results = list(executor.map(fetch_orb_data, tickers))
-    valid_data = [res for res in results if res is not None]
-    execution_ms = round((time.time() - start_time) * 1000, 2)
-    return pd.DataFrame(valid_data), execution_ms
-
-# --- SIDEBAR CONTROLS ---
-with st.sidebar:
-    st.markdown("### ⚡ ORB Terminal Controls")
-    st.markdown("---")
-    enable_auto_refresh = st.checkbox("Enable Auto-Refresh (IST Live)", value=True)
-    refresh_rate = st.slider("Refresh Interval (Seconds)", min_value=15, max_value=120, value=30)
-    st.markdown("---")
-    if st.button("🔄 Force Refresh Now"):
-        st.cache_data.clear()
-        st.rerun()
-    st.info("Tab 4 tracks 9:15-9:30 Opening Range Breakout (ORB) using 5-minute candle closes.")
-
-# --- APP HEADER ---
-current_ist = get_ist_time()
-formatted_time = current_ist.strftime('%d %b %Y | %H:%M:%S IST')
-
-col_h1, col_h2 = st.columns([3, 1])
-with col_h1:
-    st.title("⚡ ORB & Cinematic Terminal")
-    st.markdown("Automated 15-Minute Range Breakout Scanner with 5-Minute Confirmation.")
-with col_h2:
-    st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; padding-top: 10px;'>🟢 IST FEED ACTIVE<br><span style='font-size: 11px; color: #9ca3af;'>{formatted_time}</span></div>", unsafe_allow_html=True)
-
-st.markdown("---")
-
-# --- SESSION STATE INITIALIZATION ---
-if 'selected_sector_click' not in st.session_state:
-    st.session_state.selected_sector_click = list(SECTOR_MAP.keys())[0]
-
-# --- FETCH ALL DATA FOR TABS 1-3 ---
-all_tickers = [t for sublist in SECTOR_MAP.values() for t in sublist]
-with st.spinner("Scanning market matrix in IST timezone..."):
-    master_df, speed_ms = run_fast_scan_general = [] # handled below
-
-# Re-using general fast fetch for standard tabs
-def fetch_single_ticker(ticker):
-    try:
-        stock = yf.Ticker(ticker)
-        hist = stock.history(period="2d")
-        if len(hist) >= 2:
-            prev_close = hist['Close'].iloc[-2]
-            curr_price = hist['Close'].iloc[-1]
+        # Fast query optimization using yfinance fast_info or 2d history
+        tk = yf.Ticker(ticker)
+        df = tk.history(period="2d", interval="5m")
+        if df is not None and len(df) >= 2:
+            curr_price = df['Close'].iloc[-1]
+            prev_close = df['Close'].iloc[-2] # simplified prev reference
             change_pct = ((curr_price - prev_close) / prev_close) * 100
-            volume = hist['Volume'].iloc[-1]
+            volume = int(df['Volume'].iloc[-1])
+            
+            # ORB calculation (9:15 to 9:30)
+            morning = df.between_time("09:15", "09:30")
+            orb_high = morning['High'].max() if not morning.empty else curr_price
+            orb_low = morning['Low'].min() if not morning.empty else curr_price
+            
+            status = "NORMAL"
+            if curr_price > orb_high:
+                status = "BULLISH BREAKOUT 🚀"
+            elif curr_price < orb_low:
+                status = "BEARISH BREAKDOWN 🔻"
+
             return {
                 "Symbol": ticker.replace(".NS", ""),
                 "LTP": round(curr_price, 2),
                 "Change (%)": round(change_pct, 2),
                 "Volume": volume,
+                "ORB High": round(orb_high, 2),
+                "ORB Low": round(orb_low, 2),
+                "Status": status,
                 "Prev Close": round(prev_close, 2)
             }
     except Exception:
         return None
+    return None
 
-def run_fast_scan(tickers):
-    start_time = time.time()
-    with ThreadPoolExecutor(max_workers=40) as executor:
-        results = list(executor.map(fetch_single_ticker, tickers))
-    valid_data = [res for res in results if res is not None]
-    execution_ms = round((time.time() - start_time) * 1000, 2)
-    return pd.DataFrame(valid_data), execution_ms
+@st.cache_data(ttl=15) # 15 seconds aggressive cache to ensure zero lag on switching
+def execute_master_scan(all_tickers_tuple):
+    start_t = time.time()
+    with ThreadPoolExecutor(max_workers=50) as executor:
+        results = list(executor.map(fetch_stock_fast, all_tickers_tuple))
+    valid = [r for r in results if r is not None]
+    exec_time = round((time.time() - start_t) * 1000, 2)
+    return pd.DataFrame(valid), exec_time
 
-master_df, speed_ms = run_fast_scan(all_tickers)
+# --- HEADER & STATUS BAR ---
+col_h1, col_h2 = st.columns([3, 1])
+with col_h1:
+    st.markdown("### ⚡ Institutional Pro Intraday Terminal")
+    st.markdown("<span style='font-size: 12px; color: #10b981;'>Zero-Lag Multi-Threaded Engine Active | Instant Tab Switching</span>", unsafe_allow_html=True)
+with col_h2:
+    st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; font-size: 13px;'>🟢 IST: {get_ist_time().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
-# --- TABS SETUP (4 TABS NOW) ---
+st.markdown("---")
+
+# Flatten all tickers
+all_tickers = [t for sub in SECTOR_MAP.values() for t in sub]
+
+# Run Master Scan with cache optimization
+with st.spinner("⚡ High-speed market synchronization..."):
+    master_df, speed_ms = execute_master_scan(tuple(all_tickers))
+
+if 'selected_sector_click' not in st.session_state:
+    st.session_state.selected_sector_click = list(SECTOR_MAP.keys())[0]
+
+# --- TABS CREATION ---
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📌 1. Sector Overview", 
-    "📂 2. Stocks by Sector", 
-    "🔥 3. Top Gainers & Losers", 
+    "📌 1. Sector Matrix", 
+    "📂 2. Sector Stocks", 
+    "🔥 3. Gainers & Losers", 
     "⚡ 4. 9:15-9:30 ORB Breakout"
 ])
 
-# --- TAB 1: SECTOR OVERVIEW MATRIX ---
+# --- TAB 1: SECTOR MATRIX ---
 with tab1:
-    st.subheader("NSE Sector Performance Board (IST Live)")
-    st.caption(f"Scan completed in {speed_ms} ms | Timezone: IST (UTC+5:30)")
-
-    sector_summary = []
-    for sector, tickers in SECTOR_MAP.items():
-        clean_tickers = [t.replace(".NS", "") for t in tickers]
-        sec_stocks = master_df[master_df["Symbol"].isin(clean_tickers)]
-        if not sec_stocks.empty:
-            avg_chg = sec_stocks["Change (%)"].mean()
-            sector_summary.append({
-                "Sector": sector,
-                "Avg Change (%)": round(avg_chg, 2),
-                "Total Stocks": len(sec_stocks),
-                "Gainers": len(sec_stocks[sec_stocks["Change (%)"] > 0]),
-                "Losers": len(sec_stocks[sec_stocks["Change (%)"] < 0])
-            })
+    st.caption(f"⚡ Scan Latency: {speed_ms} ms (Ultra-Fast)")
     
-    sec_df = pd.DataFrame(sector_summary).sort_values(by="Avg Change (%)", ascending=False)
-
-    if not sec_df.empty:
-        for i in range(0, len(sec_df), 3):
+    sector_summary = []
+    for sec, tks in SECTOR_MAP.items():
+        clean_tks = [t.replace(".NS", "") for t in tks]
+        sec_df = master_df[master_df["Symbol"].isin(clean_tks)]
+        if not sec_df.empty:
+            avg_chg = sec_df["Change (%)"].mean()
+            sector_summary.append({
+                "Sector": sec,
+                "Avg Change (%)": round(avg_chg, 2),
+                "Total": len(sec_df),
+                "Gainers": len(sec_df[sec_df["Change (%)"] > 0]),
+                "Losers": len(sec_df[sec_df["Change (%)"] < 0])
+            })
+            
+    sec_summary_df = pd.DataFrame(sector_summary).sort_values(by="Avg Change (%)", ascending=False)
+    
+    if not sec_summary_df.empty:
+        for i in range(0, len(sec_summary_df), 3):
             cols = st.columns(3)
             for j in range(3):
-                if i + j < len(sec_df):
-                    row = sec_df.iloc[i + j]
-                    sec_name = row["Sector"]
-                    avg_val = row["Avg Change (%)"]
-                    color_code = "#10b981" if avg_val >= 0 else "#ef4444"
-                    
+                if i + j < len(sec_summary_df):
+                    row = sec_summary_df.iloc[i + j]
+                    c_col = "#10b981" if row["Avg Change (%)"] >= 0 else "#ef4444"
                     with cols[j]:
                         st.markdown(f"""
                             <div class="matrix-card">
-                                <h4 style="margin: 0; color: #ffffff;">{sec_name}</h4>
-                                <h2 style="margin: 5px 0; color: {color_code};">{avg_val:+.2f}%</h2>
-                                <p style="font-size: 12px; color: #9ca3af; margin: 0;">Stocks: {row['Total Stocks']} | 🟢 {row['Gainers']} 🔴 {row['Losers']}</p>
+                                <h4 style="margin: 0; color: #fff;">{row['Sector']}</h4>
+                                <h2 style="margin: 4px 0; color: {c_col};">{row['Avg Change (%)']:+.2f}%</h2>
+                                <p style="font-size: 11px; color: #9ca3af; margin: 0;">Stocks: {row['Total']} | 🟢 {row['Gainers']} 🔴 {row['Losers']}</p>
                             </div>
                         """, unsafe_allow_html=True)
-                        
-                        if st.button(f"🔍 View {sec_name} Stocks", key=f"btn_{sec_name}"):
-                            st.session_state.selected_sector_click = sec_name
+                        if st.button(f"🔍 Inspect {row['Sector']}", key=f"s_{row['Sector']}"):
+                            st.session_state.selected_sector_click = row['Sector']
                             st.rerun()
 
-# --- TAB 2: STOCKS MATRIX BY SECTOR ---
+# --- TAB 2: SECTOR STOCKS ---
 with tab2:
-    st.subheader("📁 Sector Stock Matrix Cards")
+    sel_sec = st.selectbox("Select Sector", list(SECTOR_MAP.keys()), index=list(SECTOR_MAP.keys()).index(st.session_state.selected_sector_click))
+    st.session_state.selected_sector_click = sel_sec
     
-    selected_sector = st.selectbox(
-        "Select Target Sector", 
-        list(SECTOR_MAP.keys()), 
-        index=list(SECTOR_MAP.keys()).index(st.session_state.selected_sector_click)
-    )
-    st.session_state.selected_sector_click = selected_sector
+    clean_tks = [t.replace(".NS", "") for t in SECTOR_MAP[sel_sec]]
+    stocks_subset = master_df[master_df["Symbol"].isin(clean_tks)].sort_values(by="Change (%)", ascending=False)
+    
+    if not stocks_subset.empty:
+        for i in range(0, len(stocks_subset), 3):
+            cols = st.columns(3)
+            for j in range(3):
+                if i + j < len(stocks_subset):
+                    stk = stocks_subset.iloc[i + j]
+                    c_col = "#10b981" if stk["Change (%)"] >= 0 else "#ef4444"
+                    with cols[j]:
+                        st.markdown(f"""
+                            <div class="matrix-card">
+                                <h4 style="margin: 0; color: #fff;">{stk['Symbol']}</h4>
+                                <h3 style="margin: 4px 0; color: {c_col};">₹{stk['LTP']:,.2f} ({stk['Change (%)']:+.2f}%)</h3>
+                                <p style="font-size: 11px; color: #9ca3af; margin: 0;">Vol: {stk['Volume']:,}</p>
+                            </div>
+                        """, unsafe_allow_html=True)
 
-    if selected_sector:
-        tickers = SECTOR_MAP[selected_sector]
-        clean_tickers = [t.replace(".NS", "") for t in tickers]
-        sector_stocks_df = master_df[master_df["Symbol"].isin(clean_tickers)]
-        
-        if not sector_stocks_df.empty:
-            sector_stocks_df = sector_stocks_df.sort_values(by="Change (%)", ascending=False)
-            
-            for i in range(0, len(sector_stocks_df), 3):
-                cols = st.columns(3)
-                for j in range(3):
-                    if i + j < len(sector_stocks_df):
-                        stock = sector_stocks_df.iloc[i + j]
-                        sym = stock["Symbol"]
-                        ltp = stock["LTP"]
-                        chg = stock["Change (%)"]
-                        vol = stock["Volume"]
-                        color_code = "#10b981" if chg >= 0 else "#ef4444"
-                        
-                        with cols[j]:
-                            st.markdown(f"""
-                                <div class="matrix-card">
-                                    <h4 style="margin: 0; color: #ffffff;">{sym}</h4>
-                                    <h3 style="margin: 4px 0; color: {color_code};">₹{ltp:,.2f} <span style="font-size: 16px;">({chg:+.2f}%)</span></h3>
-                                    <p style="font-size: 11px; color: #9ca3af; margin: 0;">Vol: {vol:,} | Prev: ₹{stock['Prev Close']}</p>
-                                </div>
-                            """, unsafe_allow_html=True)
-        else:
-            st.warning("No stock data found for this sector.")
-
-# --- TAB 3: TOP GAINERS & LOSERS MATRIX ---
+# --- TAB 3: GAINERS & LOSERS ---
 with tab3:
-    st.subheader("🔥 Top Market Movers Matrix (IST)")
+    col_g, col_l = st.columns(2)
+    with col_g:
+        st.markdown("### 🟢 Top Gainers")
+        top_g = master_df.sort_values(by="Change (%)", ascending=False).head(6)
+        for _, r in top_g.iterrows():
+            st.markdown(f"""
+                <div class="matrix-card">
+                    <h4 style="margin: 0; color: #fff;">{r['Symbol']}</h4>
+                    <h3 style="margin: 4px 0; color: #10b981;">₹{r['LTP']:,.2f} (+{r['Change (%)']:.2f}%)</h3>
+                    <p style="font-size: 11px; color: #9ca3af; margin: 0;">Vol: {r['Volume']:,}</p>
+                </div>
+            """, unsafe_allow_html=True)
+            
+    with col_l:
+        st.markdown("### 🔴 Top Losers")
+        top_l = master_df.sort_values(by="Change (%)", ascending=True).head(6)
+        for _, r in top_l.iterrows():
+            st.markdown(f"""
+                <div class="matrix-card">
+                    <h4 style="margin: 0; color: #fff;">{r['Symbol']}</h4>
+                    <h3 style="margin: 4px 0; color: #ef4444;">₹{r['LTP']:,.2f} ({r['Change (%)']:.2f}%)</h3>
+                    <p style="font-size: 11px; color: #9ca3af; margin: 0;">Vol: {r['Volume']:,}</p>
+                </div>
+            """, unsafe_allow_html=True)
 
-    if not master_df.empty:
-        col_g, col_l = st.columns(2)
-        
-        with col_g:
-            st.markdown("### 🟢 Top Gainers")
-            gainers = master_df.sort_values(by="Change (%)", ascending=False).head(6)
-            for _, row in gainers.iterrows():
-                st.markdown(f"""
-                    <div class="matrix-card">
-                        <h4 style="margin: 0; color: #ffffff;">{row['Symbol']}</h4>
-                        <h3 style="margin: 4px 0; color: #10b981;">₹{row['LTP']:,.2f} (+{row['Change (%)']:.2f}%)</h3>
-                        <p style="font-size: 11px; color: #9ca3af; margin: 0;">Volume: {row['Volume']:,}</p>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-        with col_l:
-            st.markdown("### 🔴 Top Losers")
-            losers = master_df.sort_values(by="Change (%)", ascending=True).head(6)
-            for _, row in losers.iterrows():
-                st.markdown(f"""
-                    <div class="matrix-card">
-                        <h4 style="margin: 0; color: #ffffff;">{row['Symbol']}</h4>
-                        <h3 style="margin: 4px 0; color: #ef4444;">₹{row['LTP']:,.2f} ({row['Change (%)']:.2f}%)</h3>
-                        <p style="font-size: 11px; color: #9ca3af; margin: 0;">Volume: {row['Volume']:,}</p>
-                    </div>
-                """, unsafe_allow_html=True)
-
-# --- TAB 4: 9:15-9:30 ORB BREAKOUT SCANNER ---
+# --- TAB 4: ORB BREAKOUT ---
 with tab4:
-    st.subheader("⚡ Opening Range Breakout (ORB: 9:15 - 9:30)")
-    st.markdown("Scanning stocks breaking their initial 15-minute high/low range with live 5-minute candle confirmation.")
+    st.markdown("### ⚡ 9:15 - 9:30 Opening Range Breakout (ORB)")
+    orb_bull = master_df[master_df["Status"].str.contains("BULLISH")]
+    orb_bear = master_df[master_df["Status"].str.contains("BEARISH")]
     
-    with st.spinner("Calculating 9:15-9:30 ORB ranges across all stocks..."):
-        orb_df, orb_speed = run_orb_scan(all_tickers)
-        
-    if not orb_df.empty:
-        # Filter breakout stocks
-        breakouts = orb_df[orb_df["Status"] != "NO TRADE"]
-        
-        col_b1, col_b2 = st.columns(2)
-        
-        with col_b1:
-            st.markdown("### 🚀 Bullish Breakouts (> ORB High)")
-            bull_stocks = orb_df[orb_df["Status"].str.contains("BULLISH")]
-            if not bull_stocks.empty:
-                for _, row in bull_stocks.iterrows():
-                    st.markdown(f"""
-                        <div class="matrix-card" style="border-color: #10b981;">
-                            <h4 style="margin: 0; color: #ffffff;">{row['Symbol']} <span style="font-size: 12px; color: #10b981;">[BULLISH]</span></h4>
-                            <h3 style="margin: 4px 0; color: #10b981;">₹{row['LTP']:,.2f} ({row['Change (%)']:+.2f}%)</h3>
-                            <p style="font-size: 11px; color: #9ca3af; margin: 0;">ORB High: ₹{row['ORB High']} | ORB Low: ₹{row['ORB Low']}</p>
-                        </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.info("Abhi koi bullish breakout active nahi hai.")
-                
-        with col_b2:
-            st.markdown("### 🔻 Bearish Breakdowns (< ORB Low)")
-            bear_stocks = orb_df[orb_df["Status"].str.contains("BEARISH")]
-            if not bear_stocks.empty:
-                for _, row in bear_stocks.iterrows():
-                    st.markdown(f"""
-                        <div class="matrix-card" style="border-color: #ef4444;">
-                            <h4 style="margin: 0; color: #ffffff;">{row['Symbol']} <span style="font-size: 12px; color: #ef4444;">[BEARISH]</span></h4>
-                            <h3 style="margin: 4px 0; color: #ef4444;">₹{row['LTP']:,.2f} ({row['Change (%)']:+.2f}%)</h3>
-                            <p style="font-size: 11px; color: #9ca3af; margin: 0;">ORB High: ₹{row['ORB High']} | ORB Low: ₹{row['ORB Low']}</p>
-                        </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.info("Abhi koi bearish breakdown active nahi hai.")
-                
-        with st.expander("📊 View Complete ORB Raw Table"):
-            st.dataframe(orb_df, use_container_width=True, hide_index=True)
-    else:
-                st.warning("ORB data load nahi ho paaya.")
+    col_ob1, col_ob2 = st.columns(2)
+    with col_ob1:
+        st.markdown("#### 🚀 Bullish ORB Breakouts")
+        if not orb_bull.empty:
+            for _, r in orb_bull.iterrows():
+                st.markdown(f"""
+                    <div class="matrix-card" style="border-color: #10b981;">
+                        <h4 style="margin: 0; color: #fff;">{r['Symbol']} <span style="font-size: 11px; color: #10b981;">[BREAKOUT]</span></h4>
+                        <h3 style="margin: 4px 0; color: #10b981;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                        <p style="font-size: 11px; color: #9ca3af; margin: 0;">ORB High: ₹{r['ORB High']} | Vol: {r['Volume']:,}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No active bullish breakout right now.")
+            
+    with col_ob2:
+        st.markdown("#### 🔻 Bearish ORB Breakdowns")
+        if not orb_bear.empty:
+            for _, r in orb_bear.iterrows():
+                st.markdown(f"""
+                    <div class="matrix-card" style="border-color: #ef4444;">
+                        <h4 style="margin: 0; color: #fff;">{r['Symbol']} <span style="font-size: 11px; color: #ef4444;">[BREAKDOWN]</span></h4>
+                        <h3 style="margin: 4px 0; color: #ef4444;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                        <p style="font-size: 11px; color: #9ca3af; margin: 0;">ORB Low: ₹{r['ORB Low']} | Vol: {r['Volume']:,}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No active bearish breakdown right now.")
 
-# --- AUTO REFRESH LOOP ---
-if enable_auto_refresh:
-    time.sleep(refresh_rate)
-    st.rerun()
+# Auto-refresh loop for live continuous scanning
+time.sleep(20)
+st.rerun()
