@@ -1,187 +1,203 @@
 import streamlit as st
-import asyncio
-import aiohttp
+import pandas as pd
+import yfinance as yf
+from datetime import datetime
 import time
-import logging
+from concurrent.futures import ThreadPoolExecutor
 
-# Logging configuration
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# --- PAGE CONFIGURATION ---
+st.set_page_config(
+    page_title="Ultra-Fast Milliseconds Intraday Terminal",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# --- STREAMLIT PAGE CONFIGURATION ---
-st.set_page_config(page_title="Pro Copy Trading Terminal", layout="wide", initial_sidebar_state="expanded")
-
-# --- DARK CINEMATIC GROWW-INSPIRED STYLING ---
+# --- CINEMATIC DARK HIGH-SPEED UI STYLING ---
 st.markdown("""
     <style>
     .stApp {
-        background-color: #0e1117;
+        background-color: #080c14;
+        color: #f3f4f6;
+        font-family: 'Inter', sans-serif;
+    }
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    /* Glow Status Bar */
+    .speed-badge {
+        background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);
         color: #ffffff;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
     }
-    .metric-card {
-        background-color: #1f2937;
-        border: 1px solid #374151;
-        padding: 15px;
-        border-radius: 8px;
-        text-align: center;
-    }
+
     .stButton>button {
         width: 100%;
-        background-color: #10b981;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
         color: white;
-        font-weight: bold;
-        border-radius: 6px;
+        font-weight: 700;
+        border-radius: 8px;
         border: none;
-        padding: 10px;
+        padding: 12px;
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
     }
     .stButton>button:hover {
-        background-color: #059669;
+        background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.7);
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #0f172a;
+        padding: 6px;
+        border-radius: 10px;
+        border: 1px solid #1e293b;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #1e293b !important;
+        color: #10b981 !important;
+        border: 1px solid #334155;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- ASYNC BATCH COPY TRADING ENGINE ---
-class CopyTradingEngine:
-    def __init__(self, batch_size=100, delay_between_batches=0.2):
-        self.batch_size = batch_size  # Ek baar me kitne clients ko hit karna hai
-        self.delay = delay_between_batches  # Batches ke beech ka gap (seconds)
+# --- BROAD SECTOR & NIFTY UNIVERSE ---
+SECTOR_MAP = {
+    "IT": ["TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "LTIM.NS", "MPHASIS.NS", "COFORGE.NS"],
+    "Banking & Finance": ["HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "KOTAKBANK.NS", "AXISBANK.NS", "INDUSINDBK.NS", "BAJFINANCE.NS", "BAJAJFINSV.NS"],
+    "Auto": ["TATAMOTORS.NS", "M&M.NS", "MARUTI.NS", "BAJAJ-AUTO.NS", "HEROMOTOCO.NS", "EICHERMOT.NS", "TVSMOTOR.NS"],
+    "Pharma": ["SUNPHARMA.NS", "DRREDDY.NS", "CIPLA.NS", "APOLLOHOSP.NS", "DIVISLAB.NS", "LUPIN.NS", "ALKEM.NS"],
+    "Energy & Oil": ["RELIANCE.NS", "ONGC.NS", "BPCL.NS", "IOC.NS", "POWERGRID.NS", "NTPC.NS", "TATAPOWER.NS"],
+    "Metal & Infra": ["TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS", "VEDL.NS", "GRASIM.NS", "ADANIENT.NS", "LT.NS"]
+}
 
-    async def place_single_order(self, session, client_cred, order_payload):
-        """
-        Individual client ke liye async API request bhejta hai.
-        """
-        # Note: Live deployment par yahan Angel One / Broker ka actual endpoint aayega
-        url = "https://apiconnect.angelbroking.com/rest/secure/angelbroking/order/v1/placeOrder"
-        headers = {
-            "Authorization": f"Bearer {client_cred['auth_token']}",
-            "Content-Type": "application/json",
-            "X-PrivateKey": client_cred['api_key']
-        }
-        
-        try:
-            # Paper trading simulation mode check (agar token dummy hai toh success simulate karega)
-            if "dummy" in client_cred['auth_token']:
-                await asyncio.sleep(0.05) # Network latency simulate karne ke liye
-                return {"client_id": client_cred['client_id'], "status": "SUCCESS", "response": {"message": "Paper Trade Executed Successfully"}}
+# --- SINGLE STOCK FAST FETCH FUNCTION ---
+def fetch_single_ticker(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="2d")
+        if len(hist) >= 2:
+            prev_close = hist['Close'].iloc[-2]
+            curr_price = hist['Close'].iloc[-1]
+            change_pct = ((curr_price - prev_close) / prev_close) * 100
+            volume = hist['Volume'].iloc[-1]
+            
+            return {
+                "Symbol": ticker.replace(".NS", ""),
+                "LTP": round(curr_price, 2),
+                "Change (%)": round(change_pct, 2),
+                "Volume": volume,
+                "Prev Close": round(prev_close, 2)
+            }
+    except Exception:
+        return None
 
-            async with session.post(url, json=order_payload, headers=headers, timeout=5) as response:
-                result = await response.json()
-                if response.status == 200 and result.get("status") == True:
-                    return {"client_id": client_cred['client_id'], "status": "SUCCESS", "response": result}
-                else:
-                    return {"client_id": client_cred['client_id'], "status": "FAILED", "response": result}
-        except Exception as e:
-            return {"client_id": client_cred['client_id'], "status": "ERROR", "response": str(e)}
-
-    async def execute_copy_trade_for_all(self, clients_list, order_payload):
-        """
-        1000+ clients ke liye batches banakar async requests fire karta hai.
-        """
-        start_time = time.time()
-        success_count = 0
-        failed_count = 0
-        logs = []
-
-        async with aiohttp.ClientSession() as session:
-            for i in range(0, len(clients_list), self.batch_size):
-                batch = clients_list[i:i + self.batch_size]
-                
-                # Batch ke liye saari tasks ek sath create karo
-                tasks = [self.place_single_order(session, client, order_payload) for client in batch]
-                results = await asyncio.gather(*tasks)
-                
-                for res in results:
-                    if res['status'] == 'SUCCESS':
-                        success_count += 1
-                    else:
-                        failed_count += 1
-                        logs.append(f"Client {res['client_id']} Error: {res['response']}")
-                
-                # Broker rate limit se bachne ke liye chhota sa delay
-                if i + self.batch_size < len(clients_list):
-                    await asyncio.sleep(self.delay)
-
-        end_time = time.time()
-        total_time = end_time - start_time
-        return success_count, failed_count, total_time, logs
+# --- MULTI-THREADED ULTRA FAST SCANNER ENGINE ---
+def fast_parallel_scan(tickers, max_workers=30):
+    start_time = time.time()
+    
+    # Executing HTTP requests in parallel threads
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(fetch_single_ticker, tickers))
+    
+    # Filter out None values
+    valid_data = [res for res in results if res is not None]
+    
+    execution_ms = round((time.time() - start_time) * 1000, 2)
+    return pd.DataFrame(valid_data), execution_ms
 
 
-# --- STREAMLIT USER INTERFACE ---
-st.title("⚡ Pro Multi-Account Copy Trading Terminal")
+# --- SIDEBAR CONTROL PANEL ---
+with st.sidebar:
+    st.markdown("### ⚡ Fast Scanning Engine")
+    st.markdown("---")
+    max_threads = st.slider("Parallel Threads Count", min_value=10, max_value=50, value=30)
+    st.info(f"Currently running with **{max_threads} concurrent threads** for near-zero latency.")
+    st.markdown("---")
+    st.caption("Engine: Ultra Parallel Async Core")
+
+# --- HEADER SECTION ---
+col_h1, col_h2 = st.columns([3, 1])
+with col_h1:
+    st.title("⚡ Ultra-Fast Intraday Terminal")
+    st.markdown("Parallel Multi-Threaded Real-Time Scanner with Millisecond Processing.")
+with col_h2:
+    st.markdown(
+        f"<div style='text-align: right;'><span class='speed-badge'>⚡ SPEED: MULTI-THREADED</span><br>"
+        f"<span style='font-size: 11px; color: #9ca3af;'>{datetime.now().strftime('%H:%M:%S')} IST</span></div>", 
+        unsafe_allow_html=True
+    )
+
 st.markdown("---")
 
-# Sidebar for Configuration
-st.sidebar.header("⚙️ Terminal Settings")
-total_simulated_clients = st.sidebar.number_input("Total Clients to Simulate", min_value=1, max_value=5000, value=1000)
-batch_size_input = st.sidebar.slider("Batch Size (Clients per hit)", min_value=10, max_value=500, value=100)
-batch_delay_input = st.sidebar.slider("Batch Delay (Seconds)", min_value=0.0, max_value=1.0, value=0.2, step=0.05)
+# --- TABS SETUP ---
+tab1, tab2, tab3 = st.tabs(["📌 1. Sector Matrix", "📂 2. Stocks by Sector", "🔥 3. Instant Gainers & Losers"])
 
-# Main Dashboard Layout
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.markdown('<div class="metric-card"><h3>Total Target</h3><h2>{} Accounts</h2></div>'.format(total_simulated_clients), unsafe_allow_html=True)
-with col2:
-    st.markdown('<div class="metric-card"><h3>Batch Mode</h3><h2>{} / batch</h2></div>'.format(batch_size_input), unsafe_allow_html=True)
-with col3:
-    st.markdown('<div class="metric-card"><h3>System Status</h3><h2 style="color: #10b981;">Ready (Paper Mode)</h2></div>', unsafe_allow_html=True)
+# --- TAB 1: SECTOR MATRIX ---
+with tab1:
+    col_t1, col_t2 = st.columns([4, 1])
+    with col_t1:
+        st.subheader("Sector Momentum Pulse")
+    with col_t2:
+        refresh_sec = st.button("🚀 Fast Refresh All")
 
-st.markdown("### 📋 Master Order Execution Panel")
-
-with st.form("order_form"):
-    f_col1, f_col2, f_col3 = st.columns(3)
-    with f_col1:
-        symbol = st.selectbox("Trading Symbol", ["NIFTY", "BANKNIFTY", "FINNIFTY", "RELIANCE", "TATASTEEL"])
-    with f_col2:
-        action = st.radio("Transaction Type", ["BUY", "SELL"], horizontal=True)
-    with f_col3:
-        quantity = st.number_input("Lot / Quantity", min_value=1, value=15)
-
-    order_type = st.selectbox("Order Type", ["MARKET", "LIMIT"])
+    all_tickers = [t for sublist in SECTOR_MAP.values() for t in sublist]
     
-    # Submit Button
-    submitted = st.form_submit_button("🚀 Execute Trade Across All Accounts")
+    with st.spinner("Executing parallel multi-threaded scan..."):
+        master_df, speed_ms = fast_parallel_scan(all_tickers, max_workers=max_threads)
 
-if submitted:
-    # 1. Dummy Client List generate karna (Aapke 1000+ accounts ke liye)
-    clients = [
-        {"client_id": f"CUST_{i:04d}", "auth_token": "dummy_token_xyz", "api_key": "dummy_api_key"}
-        for i in range(1, total_simulated_clients + 1)
-    ]
+    if not master_df.empty:
+        st.success(f"⚡ Full scan completed in **{speed_ms} ms** across all sectors!")
+        
+        # Sector averages calculation
+        sector_summary = []
+        for sector, tickers in SECTOR_MAP.items():
+            clean_tickers = [t.replace(".NS", "") for t in tickers]
+            sec_stocks = master_df[master_df["Symbol"].isin(clean_tickers)]
+            if not sec_stocks.empty:
+                avg_chg = sec_stocks["Change (%)"].mean()
+                sector_summary.append({
+                    "Sector": sector,
+                    "Avg Change (%)": round(avg_chg, 2),
+                    "Stocks Tracked": len(sec_stocks)
+                })
+        
+        sec_df = pd.DataFrame(sector_summary).sort_values(by="Avg Change (%)", ascending=False)
+        st.dataframe(sec_df, use_container_width=True, hide_index=True)
 
-    # 2. Payload prepare karna
-    payload = {
-        "tradingsymbol": symbol,
-        "transactiontype": action,
-        "quantity": str(quantity),
-        "ordertype": order_type,
-        "producttype": "INTRADAY"
-    }
-
-    # 3. Progress bar aur status text
-    progress_text = st.empty()
-    progress_bar = st.progress(0)
-    progress_text.text("Executing async batches across accounts...")
-
-    # 4. Engine Run Karna
-    engine = CopyTradingEngine(batch_size=batch_size_input, delay_between_batches=batch_delay_input)
+# --- TAB 2: STOCKS BY SECTOR ---
+with tab2:
+    st.subheader("Granular Sector Stock Inspector")
+    selected_sector = st.selectbox("Select Target Sector", list(SECTOR_MAP.keys()))
     
-    # Run async loop inside Streamlit
-    success, failed, time_taken, error_logs = asyncio.run(engine.execute_copy_trade_for_all(clients, payload))
+    if selected_sector:
+        sector_tickers = SECTOR_MAP[selected_sector]
+        with st.spinner(f"Instant fetching stocks for {selected_sector}..."):
+            sec_df, sec_speed = fast_parallel_scan(sector_tickers, max_workers=max_threads)
+        
+        if not sec_df.empty:
+            st.caption(f"Fetched in {sec_speed} ms")
+            st.dataframe(sec_df.sort_values(by="Change (%)", ascending=False), use_container_width=True, hide_index=True)
 
-    progress_bar.progress(100)
-    progress_text.text("Execution Completed!")
+# --- TAB 3: INSTANT GAINERS & LOSERS ---
+with tab3:
+    st.subheader("Instant Breakout & Breakdown Scanner")
 
-    # 5. Results Display
-    st.markdown("---")
-    st.subheader("📊 Execution Report")
-    
-    r_col1, r_col2, r_col3 = st.columns(3)
-    r_col1.metric("Successful Trades", f"{success} / {total_simulated_clients}", delta="100% Success" if failed == 0 else f"-{failed} Failed")
-    r_col2.metric("Failed Trades", f"{failed}")
-    r_col3.metric("Total Time Taken", f"{time_taken:.2f} seconds")
-
-    if error_logs:
-        with st.expander("🔍 View Error Logs"):
-            for log in error_logs[:50]: # First 50 errors dikhane ke liye
-                st.error(log)
-    else:
-        st.success("🎉 Sabhi accounts me trade bina kisi error ke successfully place ho gaye!")
+    if not master_df.empty:
+        col_gain, col_loss = st.columns(2)
+        
+        with col_gain:
+            st.markdown("### 🟢 Instant Top Gainers")
+            gainers = master_df.sort_values(by="Change (%)", ascending=False).head(5)
+            st.dataframe(gainers, use_container_width=True, hide_index=True)
+            
+        with col_loss:
+            st.markdown("### 🔴 Instant Top Losers")
+            losers = master_df.sort_values(by="Change (%)", ascending=True).head(5)
+            st.dataframe(losers, use_container_width=True, hide_index=True)
