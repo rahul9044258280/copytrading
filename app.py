@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- HIGH-PERFORMANCE CINEMATIC CSS WITH DYNAMIC CARD COLORS ---
+# --- HIGH-PERFORMANCE CINEMATIC CSS ---
 st.markdown("""
     <style>
     .stApp {
@@ -68,6 +68,20 @@ st.markdown("""
     }
     .stButton>button:hover {
         background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* TradingView Link Styling inside Cards */
+    .tv-link {
+        display: inline-block;
+        margin-top: 8px;
+        font-size: 11px;
+        color: #6ee7b7;
+        text-decoration: none;
+        font-weight: 600;
+    }
+    .tv-link:hover {
+        text-decoration: underline;
+        color: #ffffff;
     }
 
     .stTabs [data-baseweb="tab-list"] {
@@ -144,7 +158,7 @@ def execute_master_scan(all_tickers_tuple):
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
     st.markdown("### ⚡ Institutional Pro Intraday Terminal")
-    st.markdown("<span style='font-size: 12px; color: #10b981;'>All Sectors Live Matrix | Zero-Lag Engine</span>", unsafe_allow_html=True)
+    st.markdown("<span style='font-size: 12px; color: #10b981;'>All Sectors Live Matrix | TradingView Direct Integration</span>", unsafe_allow_html=True)
 with col_h2:
     st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; font-size: 13px;'>🟢 IST: {get_ist_time().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
@@ -165,9 +179,9 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "⚡ 4. 9:15-9:30 ORB Breakout"
 ])
 
-# --- TAB 1: ALL SECTORS MATRIX WITH DYNAMIC GREEN/RED CARDS ---
+# --- TAB 1: ALL SECTORS MATRIX ---
 with tab1:
-    st.caption(f"⚡ Scan Latency: {speed_ms} ms | All Sectors Performance Pulse")
+    st.caption(f"⚡ Scan Latency: {speed_ms} ms | Click any sector inspect button")
     
     sector_summary = []
     for sec, tks in SECTOR_MAP.items():
@@ -192,8 +206,6 @@ with tab1:
                 if i + j < len(sec_summary_df):
                     row = sec_summary_df.iloc[i + j]
                     avg_val = row["Avg Change (%)"]
-                    
-                    # Dynamic Card Styling based on Tezi (Green) or Mandi (Red)
                     card_class = "matrix-card-green" if avg_val >= 0 else "matrix-card-red"
                     arrow = "🚀" if avg_val >= 0 else "🔻"
                     
@@ -209,7 +221,7 @@ with tab1:
                             st.session_state.selected_sector_click = row['Sector']
                             st.rerun()
 
-# --- TAB 2: SECTOR STOCKS ---
+# --- TAB 2: SECTOR STOCKS WITH TRADINGVIEW LINK ---
 with tab2:
     sel_sec = st.selectbox("Select Sector", list(SECTOR_MAP.keys()), index=list(SECTOR_MAP.keys()).index(st.session_state.selected_sector_click))
     st.session_state.selected_sector_click = sel_sec
@@ -225,27 +237,34 @@ with tab2:
                     stk = stocks_subset.iloc[i + j]
                     chg_val = stk["Change (%)"]
                     card_cls = "matrix-card-green" if chg_val >= 0 else "matrix-card-red"
+                    sym = stk["Symbol"]
+                    tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}"
+                    
                     with cols[j]:
                         st.markdown(f"""
                             <div class="{card_cls}">
-                                <h4 style="margin: 0; color: #fff;">{stk['Symbol']}</h4>
+                                <h4 style="margin: 0; color: #fff;">{sym}</h4>
                                 <h3 style="margin: 4px 0; color: #fff;">₹{stk['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {stk['Volume']:,}</p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 Open TradingView Chart ↗</a>
                             </div>
                         """, unsafe_allow_html=True)
 
-# --- TAB 3: GAINERS & LOSERS ---
+# --- TAB 3: GAINERS & LOSERS WITH TRADINGVIEW LINK ---
 with tab3:
     col_g, col_l = st.columns(2)
     with col_g:
         st.markdown("### 🟢 Top Gainers")
         top_g = master_df.sort_values(by="Change (%)", ascending=False).head(6)
         for _, r in top_g.iterrows():
+            sym = r['Symbol']
+            tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}"
             st.markdown(f"""
                 <div class="matrix-card-green">
-                    <h4 style="margin: 0; color: #fff;">{r['Symbol']}</h4>
+                    <h4 style="margin: 0; color: #fff;">{sym}</h4>
                     <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} (+{r['Change (%)']:.2f}%)</h3>
                     <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
+                    <a href="{tv_url}" target="_blank" class="tv-link">📈 Open TradingView Chart ↗</a>
                 </div>
             """, unsafe_allow_html=True)
             
@@ -253,15 +272,18 @@ with tab3:
         st.markdown("### 🔴 Top Losers")
         top_l = master_df.sort_values(by="Change (%)", ascending=True).head(6)
         for _, r in top_l.iterrows():
+            sym = r['Symbol']
+            tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}"
             st.markdown(f"""
                 <div class="matrix-card-red">
-                    <h4 style="margin: 0; color: #fff;">{r['Symbol']}</h4>
+                    <h4 style="margin: 0; color: #fff;">{sym}</h4>
                     <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:.2f}%)</h3>
                     <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
+                    <a href="{tv_url}" target="_blank" class="tv-link">📈 Open TradingView Chart ↗</a>
                 </div>
             """, unsafe_allow_html=True)
 
-# --- TAB 4: ORB BREAKOUT ---
+# --- TAB 4: ORB BREAKOUT WITH TRADINGVIEW LINK ---
 with tab4:
     st.markdown("### ⚡ 9:15 - 9:30 Opening Range Breakout (ORB)")
     orb_bull = master_df[master_df["Status"].str.contains("BULLISH")]
@@ -272,11 +294,14 @@ with tab4:
         st.markdown("#### 🚀 Bullish ORB Breakouts")
         if not orb_bull.empty:
             for _, r in orb_bull.iterrows():
+                sym = r['Symbol']
+                tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}"
                 st.markdown(f"""
                     <div class="matrix-card-green">
-                        <h4 style="margin: 0; color: #fff;">{r['Symbol']} <span style="font-size: 11px; color: #fff;">[BREAKOUT]</span></h4>
+                        <h4 style="margin: 0; color: #fff;">{sym} <span style="font-size: 11px; color: #fff;">[BREAKOUT]</span></h4>
                         <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
                         <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB High: ₹{r['ORB High']} | Vol: {r['Volume']:,}</p>
+                        <a href="{tv_url}" target="_blank" class="tv-link">📈 Open TradingView Chart ↗</a>
                     </div>
                 """, unsafe_allow_html=True)
         else:
@@ -286,11 +311,14 @@ with tab4:
         st.markdown("#### 🔻 Bearish ORB Breakdowns")
         if not orb_bear.empty:
             for _, r in orb_bear.iterrows():
+                sym = r['Symbol']
+                tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}"
                 st.markdown(f"""
                     <div class="matrix-card-red">
-                        <h4 style="margin: 0; color: #fff;">{r['Symbol']} <span style="font-size: 11px; color: #fff;">[BREAKDOWN]</span></h4>
+                        <h4 style="margin: 0; color: #fff;">{sym} <span style="font-size: 11px; color: #fff;">[BREAKDOWN]</span></h4>
                         <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
                         <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB Low: ₹{r['ORB Low']} | Vol: {r['Volume']:,}</p>
+                        <a href="{tv_url}" target="_blank" class="tv-link">📈 Open TradingView Chart ↗</a>
                     </div>
                 """, unsafe_allow_html=True)
         else:
