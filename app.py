@@ -13,7 +13,7 @@ def get_ist_time():
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="IST Synchronized Terminal",
+    page_title="ORB Breakout Terminal",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -60,7 +60,7 @@ st.markdown("""
     }
 
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
+        gap: 6px;
         background-color: #111827;
         padding: 6px;
         border-radius: 10px;
@@ -84,7 +84,90 @@ SECTOR_MAP = {
     "Metal & Infrastructure": ["TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS", "VEDL.NS", "GRASIM.NS", "ADANIENT.NS", "LT.NS", "JINDALSTEL.NS"]
 }
 
-# --- FAST SINGLE STOCK FETCHER ---
+# --- ADVANCED INTRA-DAY 5M & ORB FETCHER ---
+def fetch_orb_data(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        # Intraday 5-minute data for today
+        df = stock.history(period="1d", interval="5m")
+        if df is not None and not df.empty:
+            # Filter for IST session or check latest candles
+            # 9:15 to 9:30 candles form the ORB range (First 3 candles of 5m interval)
+            morning_candles = df.between_time("09:15", "09:30")
+            
+            if len(morning_candles) >= 2:
+                orb_high = morning_candles['High'].max()
+                orb_low = morning_candles['Low'].min()
+                
+                # Current Live Price / Last Candle
+                latest_candle = df.iloc[-1]
+                curr_price = latest_candle['Close']
+                prev_close = df['Open'].iloc[0] # Approximate prev/open base
+                change_pct = ((curr_price - df['Close'].iloc[0]) / df['Close'].iloc[0]) * 100
+                
+                breakout_status = "NO TRADE"
+                if curr_price > orb_high:
+                    breakout_status = "BULLISH BREAKOUT 🚀"
+                elif curr_price < orb_low:
+                    breakout_status = "BEARISH BREAKDOWN 🔻"
+
+                return {
+                    "Symbol": ticker.replace(".NS", ""),
+                    "LTP": round(curr_price, 2),
+                    "ORB High": round(orb_high, 2),
+                    "ORB Low": round(orb_low, 2),
+                    "Change (%)": round(change_pct, 2),
+                    "Status": breakout_status,
+                    "Volume": int(latest_candle['Volume'])
+                }
+    except Exception:
+        return None
+    return None
+
+# --- PARALLEL SCANNER FOR ORB ---
+def run_orb_scan(tickers):
+    start_time = time.time()
+    with ThreadPoolExecutor(max_workers=40) as executor:
+        results = list(executor.map(fetch_orb_data, tickers))
+    valid_data = [res for res in results if res is not None]
+    execution_ms = round((time.time() - start_time) * 1000, 2)
+    return pd.DataFrame(valid_data), execution_ms
+
+# --- SIDEBAR CONTROLS ---
+with st.sidebar:
+    st.markdown("### ⚡ ORB Terminal Controls")
+    st.markdown("---")
+    enable_auto_refresh = st.checkbox("Enable Auto-Refresh (IST Live)", value=True)
+    refresh_rate = st.slider("Refresh Interval (Seconds)", min_value=15, max_value=120, value=30)
+    st.markdown("---")
+    if st.button("🔄 Force Refresh Now"):
+        st.cache_data.clear()
+        st.rerun()
+    st.info("Tab 4 tracks 9:15-9:30 Opening Range Breakout (ORB) using 5-minute candle closes.")
+
+# --- APP HEADER ---
+current_ist = get_ist_time()
+formatted_time = current_ist.strftime('%d %b %Y | %H:%M:%S IST')
+
+col_h1, col_h2 = st.columns([3, 1])
+with col_h1:
+    st.title("⚡ ORB & Cinematic Terminal")
+    st.markdown("Automated 15-Minute Range Breakout Scanner with 5-Minute Confirmation.")
+with col_h2:
+    st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; padding-top: 10px;'>🟢 IST FEED ACTIVE<br><span style='font-size: 11px; color: #9ca3af;'>{formatted_time}</span></div>", unsafe_allow_html=True)
+
+st.markdown("---")
+
+# --- SESSION STATE INITIALIZATION ---
+if 'selected_sector_click' not in st.session_state:
+    st.session_state.selected_sector_click = list(SECTOR_MAP.keys())[0]
+
+# --- FETCH ALL DATA FOR TABS 1-3 ---
+all_tickers = [t for sublist in SECTOR_MAP.values() for t in sublist]
+with st.spinner("Scanning market matrix in IST timezone..."):
+    master_df, speed_ms = run_fast_scan_general = [] # handled below
+
+# Re-using general fast fetch for standard tabs
 def fetch_single_ticker(ticker):
     try:
         stock = yf.Ticker(ticker)
@@ -94,7 +177,6 @@ def fetch_single_ticker(ticker):
             curr_price = hist['Close'].iloc[-1]
             change_pct = ((curr_price - prev_close) / prev_close) * 100
             volume = hist['Volume'].iloc[-1]
-            
             return {
                 "Symbol": ticker.replace(".NS", ""),
                 "LTP": round(curr_price, 2),
@@ -105,7 +187,6 @@ def fetch_single_ticker(ticker):
     except Exception:
         return None
 
-# --- PARALLEL SCANNER ENGINE ---
 def run_fast_scan(tickers):
     start_time = time.time()
     with ThreadPoolExecutor(max_workers=40) as executor:
@@ -114,42 +195,15 @@ def run_fast_scan(tickers):
     execution_ms = round((time.time() - start_time) * 1000, 2)
     return pd.DataFrame(valid_data), execution_ms
 
-# --- SIDEBAR CONTROLS ---
-with st.sidebar:
-    st.markdown("### ⚡ IST Terminal Controls")
-    st.markdown("---")
-    enable_auto_refresh = st.checkbox("Enable Auto-Refresh (IST Live)", value=True)
-    refresh_rate = st.slider("Refresh Interval (Seconds)", min_value=15, max_value=120, value=30)
-    st.markdown("---")
-    if st.button("🔄 Force Refresh Now"):
-        st.cache_data.clear()
-        st.rerun()
-    st.info("Timing is synchronized with Indian Standard Time (IST). Optimized for 9:15 AM market open.")
+master_df, speed_ms = run_fast_scan(all_tickers)
 
-# --- APP HEADER WITH IST TIME ---
-current_ist = get_ist_time()
-formatted_time = current_ist.strftime('%d %b %Y | %H:%M:%S IST')
-
-col_h1, col_h2 = st.columns([3, 1])
-with col_h1:
-    st.title("⚡ IST Synchronized Cinematic Terminal")
-    st.markdown("Real-Time Millisecond NSE Scanner mapped to Indian Standard Time.")
-with col_h2:
-    st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; padding-top: 10px;'>🟢 IST FEED ACTIVE<br><span style='font-size: 11px; color: #9ca3af;'>{formatted_time}</span></div>", unsafe_allow_html=True)
-
-st.markdown("---")
-
-# --- SESSION STATE INITIALIZATION ---
-if 'selected_sector_click' not in st.session_state:
-    st.session_state.selected_sector_click = list(SECTOR_MAP.keys())[0]
-
-# --- FETCH ALL DATA ---
-all_tickers = [t for sublist in SECTOR_MAP.values() for t in sublist]
-with st.spinner("Scanning market in IST timezone..."):
-    master_df, speed_ms = run_fast_scan(all_tickers)
-
-# --- TABS SETUP ---
-tab1, tab2, tab3 = st.tabs(["📌 1. Sector Overview", "📂 2. Stocks by Sector", "🔥 3. Top Gainers & Losers"])
+# --- TABS SETUP (4 TABS NOW) ---
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📌 1. Sector Overview", 
+    "📂 2. Stocks by Sector", 
+    "🔥 3. Top Gainers & Losers", 
+    "⚡ 4. 9:15-9:30 ORB Breakout"
+])
 
 # --- TAB 1: SECTOR OVERVIEW MATRIX ---
 with tab1:
@@ -266,6 +320,55 @@ with tab3:
                         <p style="font-size: 11px; color: #9ca3af; margin: 0;">Volume: {row['Volume']:,}</p>
                     </div>
                 """, unsafe_allow_html=True)
+
+# --- TAB 4: 9:15-9:30 ORB BREAKOUT SCANNER ---
+with tab4:
+    st.subheader("⚡ Opening Range Breakout (ORB: 9:15 - 9:30)")
+    st.markdown("Scanning stocks breaking their initial 15-minute high/low range with live 5-minute candle confirmation.")
+    
+    with st.spinner("Calculating 9:15-9:30 ORB ranges across all stocks..."):
+        orb_df, orb_speed = run_orb_scan(all_tickers)
+        
+    if not orb_df.empty:
+        # Filter breakout stocks
+        breakouts = orb_df[orb_df["Status"] != "NO TRADE"]
+        
+        col_b1, col_b2 = st.columns(2)
+        
+        with col_b1:
+            st.markdown("### 🚀 Bullish Breakouts (> ORB High)")
+            bull_stocks = orb_df[orb_df["Status"].str.contains("BULLISH")]
+            if not bull_stocks.empty:
+                for _, row in bull_stocks.iterrows():
+                    st.markdown(f"""
+                        <div class="matrix-card" style="border-color: #10b981;">
+                            <h4 style="margin: 0; color: #ffffff;">{row['Symbol']} <span style="font-size: 12px; color: #10b981;">[BULLISH]</span></h4>
+                            <h3 style="margin: 4px 0; color: #10b981;">₹{row['LTP']:,.2f} ({row['Change (%)']:+.2f}%)</h3>
+                            <p style="font-size: 11px; color: #9ca3af; margin: 0;">ORB High: ₹{row['ORB High']} | ORB Low: ₹{row['ORB Low']}</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("Abhi koi bullish breakout active nahi hai.")
+                
+        with col_b2:
+            st.markdown("### 🔻 Bearish Breakdowns (< ORB Low)")
+            bear_stocks = orb_df[orb_df["Status"].str.contains("BEARISH")]
+            if not bear_stocks.empty:
+                for _, row in bear_stocks.iterrows():
+                    st.markdown(f"""
+                        <div class="matrix-card" style="border-color: #ef4444;">
+                            <h4 style="margin: 0; color: #ffffff;">{row['Symbol']} <span style="font-size: 12px; color: #ef4444;">[BEARISH]</span></h4>
+                            <h3 style="margin: 4px 0; color: #ef4444;">₹{row['LTP']:,.2f} ({row['Change (%)']:+.2f}%)</h3>
+                            <p style="font-size: 11px; color: #9ca3af; margin: 0;">ORB High: ₹{row['ORB High']} | ORB Low: ₹{row['ORB Low']}</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("Abhi koi bearish breakdown active nahi hai.")
+                
+        with st.expander("📊 View Complete ORB Raw Table"):
+            st.dataframe(orb_df, use_container_width=True, hide_index=True)
+    else:
+                st.warning("ORB data load nahi ho paaya.")
 
 # --- AUTO REFRESH LOOP ---
 if enable_auto_refresh:
