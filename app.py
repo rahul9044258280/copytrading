@@ -7,17 +7,17 @@ from concurrent.futures import ThreadPoolExecutor
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Ultra-Fast Milliseconds Intraday Terminal",
-    page_icon="⚡",
+    page_title="NSE-Style Interactive Sector & Stock Terminal",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- CINEMATIC DARK HIGH-SPEED UI STYLING ---
+# --- CINEMATIC NSE PROFESSIONAL STYLING ---
 st.markdown("""
     <style>
     .stApp {
-        background-color: #080c14;
+        background-color: #0b0f19;
         color: #f3f4f6;
         font-family: 'Inter', sans-serif;
     }
@@ -25,18 +25,16 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Glow Status Bar */
-    .speed-badge {
-        background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);
-        color: #ffffff;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.5px;
-        box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+    /* Sector Card Styling */
+    .sector-card {
+        background: #111827;
+        border: 1px solid #1f2937;
+        padding: 18px;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        margin-bottom: 12px;
     }
-
+    
     .stButton>button {
         width: 100%;
         background: linear-gradient(135deg, #10b981 0%, #059669 100%);
@@ -44,40 +42,39 @@ st.markdown("""
         font-weight: 700;
         border-radius: 8px;
         border: none;
-        padding: 12px;
-        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+        padding: 10px;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
     }
     .stButton>button:hover {
         background: linear-gradient(135deg, #059669 0%, #047857 100%);
-        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.7);
     }
 
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
-        background-color: #0f172a;
+        background-color: #111827;
         padding: 6px;
         border-radius: 10px;
-        border: 1px solid #1e293b;
+        border: 1px solid #1f2937;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #1e293b !important;
+        background-color: #1f2937 !important;
         color: #10b981 !important;
-        border: 1px solid #334155;
+        border: 1px solid #374151;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- BROAD SECTOR & NIFTY UNIVERSE ---
+# --- COMPLETE NSE SECTOR UNIVERSE ---
 SECTOR_MAP = {
-    "IT": ["TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "LTIM.NS", "MPHASIS.NS", "COFORGE.NS"],
-    "Banking & Finance": ["HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "KOTAKBANK.NS", "AXISBANK.NS", "INDUSINDBK.NS", "BAJFINANCE.NS", "BAJAJFINSV.NS"],
-    "Auto": ["TATAMOTORS.NS", "M&M.NS", "MARUTI.NS", "BAJAJ-AUTO.NS", "HEROMOTOCO.NS", "EICHERMOT.NS", "TVSMOTOR.NS"],
-    "Pharma": ["SUNPHARMA.NS", "DRREDDY.NS", "CIPLA.NS", "APOLLOHOSP.NS", "DIVISLAB.NS", "LUPIN.NS", "ALKEM.NS"],
-    "Energy & Oil": ["RELIANCE.NS", "ONGC.NS", "BPCL.NS", "IOC.NS", "POWERGRID.NS", "NTPC.NS", "TATAPOWER.NS"],
-    "Metal & Infra": ["TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS", "VEDL.NS", "GRASIM.NS", "ADANIENT.NS", "LT.NS"]
+    "IT & Technology": ["TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "LTIM.NS", "MPHASIS.NS", "COFORGE.NS", "PERSISTENT.NS", "OFSS.NS"],
+    "Banking & Financials": ["HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "KOTAKBANK.NS", "AXISBANK.NS", "INDUSINDBK.NS", "BAJFINANCE.NS", "BAJAJFINSV.NS", "PNB.NS", "BANKBARODA.NS"],
+    "Automobile": ["TATAMOTORS.NS", "M&M.NS", "MARUTI.NS", "BAJAJ-AUTO.NS", "HEROMOTOCO.NS", "EICHERMOT.NS", "TVSMOTOR.NS", "ASHOKLEY.NS"],
+    "Pharmaceuticals": ["SUNPHARMA.NS", "DRREDDY.NS", "CIPLA.NS", "APOLLOHOSP.NS", "DIVISLAB.NS", "LUPIN.NS", "ALKEM.NS", "TORNTPHARM.NS"],
+    "Energy & Oil/Gas": ["RELIANCE.NS", "ONGC.NS", "BPCL.NS", "IOC.NS", "POWERGRID.NS", "NTPC.NS", "TATAPOWER.NS", "ADANIGREEN.NS"],
+    "Metal & Infrastructure": ["TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS", "VEDL.NS", "GRASIM.NS", "ADANIENT.NS", "LT.NS", "JINDALSTEL.NS"]
 }
 
-# --- SINGLE STOCK FAST FETCH FUNCTION ---
+# --- FAST SINGLE STOCK FETCHER ---
 def fetch_single_ticker(ticker):
     try:
         stock = yf.Ticker(ticker)
@@ -98,106 +95,137 @@ def fetch_single_ticker(ticker):
     except Exception:
         return None
 
-# --- MULTI-THREADED ULTRA FAST SCANNER ENGINE ---
-def fast_parallel_scan(tickers, max_workers=30):
+# --- PARALLEL MULTI-THREADED SCANNER ENGINE ---
+def run_fast_scan(tickers):
     start_time = time.time()
-    
-    # Executing HTTP requests in parallel threads
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    with ThreadPoolExecutor(max_workers=30) as executor:
         results = list(executor.map(fetch_single_ticker, tickers))
-    
-    # Filter out None values
     valid_data = [res for res in results if res is not None]
-    
     execution_ms = round((time.time() - start_time) * 1000, 2)
     return pd.DataFrame(valid_data), execution_ms
 
-
-# --- SIDEBAR CONTROL PANEL ---
+# --- SIDEBAR CONTROLS ---
 with st.sidebar:
-    st.markdown("### ⚡ Fast Scanning Engine")
+    st.markdown("### 📊 NSE Terminal Panel")
     st.markdown("---")
-    max_threads = st.slider("Parallel Threads Count", min_value=10, max_value=50, value=30)
-    st.info(f"Currently running with **{max_threads} concurrent threads** for near-zero latency.")
+    if st.button("🔄 Refresh All Markets"):
+        st.cache_data.clear()
     st.markdown("---")
-    st.caption("Engine: Ultra Parallel Async Core")
+    st.info("Click on any sector in the overview tab to instantly load its complete stock portfolio like the official NSE portal.")
 
-# --- HEADER SECTION ---
+# --- APP HEADER ---
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
-    st.title("⚡ Ultra-Fast Intraday Terminal")
-    st.markdown("Parallel Multi-Threaded Real-Time Scanner with Millisecond Processing.")
+    st.title("📊 NSE Live Sector & Stock Terminal")
+    st.markdown("Clickable NSE-Style Sector Performance Matrix with Instant Stock Drill-Down.")
 with col_h2:
-    st.markdown(
-        f"<div style='text-align: right;'><span class='speed-badge'>⚡ SPEED: MULTI-THREADED</span><br>"
-        f"<span style='font-size: 11px; color: #9ca3af;'>{datetime.now().strftime('%H:%M:%S')} IST</span></div>", 
-        unsafe_allow_html=True
-    )
+    st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; padding-top: 10px;'>🟢 LIVE FEED<br><span style='font-size: 11px; color: #9ca3af;'>{datetime.now().strftime('%H:%M:%S')} IST</span></div>", unsafe_allow_html=True)
 
 st.markdown("---")
 
+# --- INITIALIZE SESSION STATE FOR SECTOR CLICK ---
+if 'selected_sector_click' not in st.session_state:
+    st.session_state.selected_sector_click = list(SECTOR_MAP.keys())[0]
+
+# --- FETCH ALL DATA ONCE FOR SPEED ---
+all_tickers = [t for sublist in SECTOR_MAP.values() for t in sublist]
+with st.spinner("Scanning market sectors in milliseconds..."):
+    master_df, speed_ms = run_fast_scan(all_tickers)
+
 # --- TABS SETUP ---
-tab1, tab2, tab3 = st.tabs(["📌 1. Sector Matrix", "📂 2. Stocks by Sector", "🔥 3. Instant Gainers & Losers"])
+tab1, tab2, tab3 = st.tabs(["📌 1. NSE Sector Overview", "📂 2. Stocks by Sector (Drill-Down)", "🔥 3. Top Gainers & Losers"])
 
-# --- TAB 1: SECTOR MATRIX ---
+# --- TAB 1: NSE SECTOR OVERVIEW (CLICKABLE CARDS) ---
 with tab1:
-    col_t1, col_t2 = st.columns([4, 1])
-    with col_t1:
-        st.subheader("Sector Momentum Pulse")
-    with col_t2:
-        refresh_sec = st.button("🚀 Fast Refresh All")
+    st.subheader("NSE Sector Performance Board (Click to Inspect)")
+    st.caption(f"Scan completed in {speed_ms} ms")
 
-    all_tickers = [t for sublist in SECTOR_MAP.values() for t in sublist]
+    # Calculate Sector Averages
+    sector_summary = []
+    for sector, tickers in SECTOR_MAP.items():
+        clean_tickers = [t.replace(".NS", "") for t in tickers]
+        sec_stocks = master_df[master_df["Symbol"].isin(clean_tickers)]
+        if not sec_stocks.empty:
+            avg_chg = sec_stocks["Change (%)"].mean()
+            sector_summary.append({
+                "Sector": sector,
+                "Avg Change (%)": round(avg_chg, 2),
+                "Total Stocks": len(sec_stocks),
+                "Gainers": len(sec_stocks[sec_stocks["Change (%)"] > 0]),
+                "Losers": len(sec_stocks[sec_stocks["Change (%)"] < 0])
+            })
     
-    with st.spinner("Executing parallel multi-threaded scan..."):
-        master_df, speed_ms = fast_parallel_scan(all_tickers, max_workers=max_threads)
+    sec_df = pd.DataFrame(sector_summary).sort_values(by="Avg Change (%)", ascending=False)
 
-    if not master_df.empty:
-        st.success(f"⚡ Full scan completed in **{speed_ms} ms** across all sectors!")
-        
-        # Sector averages calculation
-        sector_summary = []
-        for sector, tickers in SECTOR_MAP.items():
-            clean_tickers = [t.replace(".NS", "") for t in tickers]
-            sec_stocks = master_df[master_df["Symbol"].isin(clean_tickers)]
-            if not sec_stocks.empty:
-                avg_chg = sec_stocks["Change (%)"].mean()
-                sector_summary.append({
-                    "Sector": sector,
-                    "Avg Change (%)": round(avg_chg, 2),
-                    "Stocks Tracked": len(sec_stocks)
-                })
-        
-        sec_df = pd.DataFrame(sector_summary).sort_values(by="Avg Change (%)", ascending=False)
-        st.dataframe(sec_df, use_container_width=True, hide_index=True)
+    if not sec_df.empty:
+        # Display in rows of 3 columns like NSE dashboard
+        for i in range(0, len(sec_df), 3):
+            cols = st.columns(3)
+            for j in range(3):
+                if i + j < len(sec_df):
+                    row = sec_df.iloc[i + j]
+                    sec_name = row["Sector"]
+                    avg_val = row["Avg Change (%)"]
+                    color_code = "#10b981" if avg_val >= 0 else "#ef4444"
+                    
+                    with cols[j]:
+                        st.markdown(f"""
+                            <div class="sector-card">
+                                <h4 style="margin: 0; color: #ffffff;">{sec_name}</h4>
+                                <h2 style="margin: 5px 0; color: {color_code};">{avg_val:+.2f}%</h2>
+                                <p style="font-size: 12px; color: #9ca3af; margin: 0;">Stocks: {row['Total Stocks']} | 🟢 {row['Gainers']} 🔴 {row['Losers']}</p>
+                            </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Click button to jump to sector stocks
+                        if st.button(f"🔍 View {sec_name} Stocks", key=f"btn_{sec_name}"):
+                            st.session_state.selected_sector_click = sec_name
+                            st.rerun()
+    else:
+        st.warning("Market data temporarily unavailable.")
 
-# --- TAB 2: STOCKS BY SECTOR ---
+# --- TAB 2: STOCKS BY SECTOR (CLICKABLE & FILTERABLE) ---
 with tab2:
-    st.subheader("Granular Sector Stock Inspector")
-    selected_sector = st.selectbox("Select Target Sector", list(SECTOR_MAP.keys()))
+    st.subheader("📁 Sector Stock Portfolio List")
     
-    if selected_sector:
-        sector_tickers = SECTOR_MAP[selected_sector]
-        with st.spinner(f"Instant fetching stocks for {selected_sector}..."):
-            sec_df, sec_speed = fast_parallel_scan(sector_tickers, max_workers=max_threads)
-        
-        if not sec_df.empty:
-            st.caption(f"Fetched in {sec_speed} ms")
-            st.dataframe(sec_df.sort_values(by="Change (%)", ascending=False), use_container_width=True, hide_index=True)
+    # Dropdown automatically synced with clicked sector card
+    selected_sector = st.selectbox(
+        "Select Sector to View All Stocks", 
+        list(SECTOR_MAP.keys()), 
+        index=list(SECTOR_MAP.keys()).index(st.session_state.selected_sector_click)
+    )
+    
+    # Update state if changed via dropdown manually
+    st.session_state.selected_sector_click = selected_sector
 
-# --- TAB 3: INSTANT GAINERS & LOSERS ---
+    if selected_sector:
+        tickers = SECTOR_MAP[selected_sector]
+        clean_tickers = [t.replace(".NS", "") for t in tickers]
+        sector_stocks_df = master_df[master_df["Symbol"].isin(clean_tickers)]
+        
+        if not sector_stocks_df.empty:
+            st.markdown(f"### Showing all stocks under **{selected_sector}**")
+            st.dataframe(
+                sector_stocks_df.sort_values(by="Change (%)", ascending=False), 
+                use_container_width=True, 
+                hide_index=True
+            )
+        else:
+            st.warning("No stock data found for this sector.")
+
+# --- TAB 3: TOP GAINERS & LOSERS ---
 with tab3:
-    st.subheader("Instant Breakout & Breakdown Scanner")
+    st.subheader("🔥 Top Market Movers Across All Sectors")
 
     if not master_df.empty:
         col_gain, col_loss = st.columns(2)
         
         with col_gain:
-            st.markdown("### 🟢 Instant Top Gainers")
+            st.markdown("### 🟢 Top Gainers")
             gainers = master_df.sort_values(by="Change (%)", ascending=False).head(5)
             st.dataframe(gainers, use_container_width=True, hide_index=True)
             
         with col_loss:
-            st.markdown("### 🔴 Instant Top Losers")
+            st.markdown("### 🔴 Top Losers")
             losers = master_df.sort_values(by="Change (%)", ascending=True).head(5)
             st.dataframe(losers, use_container_width=True, hide_index=True)
