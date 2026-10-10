@@ -99,68 +99,68 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- EXPANDED NIFTY 500 & LIQUID CASH UNIVERSE ---
+# --- EXPANDED UNIVERSE: LARGE, MID, & LIQUID SMALLCAPS (NO PENNY STOCKS) ---
 SECTOR_MAP = {
     "IT & Technology": [
         "TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "LTIM.NS", 
         "MPHASIS.NS", "COFORGE.NS", "PERSISTENT.NS", "OFSS.NS", "KPITTECH.NS", 
-        "TATAELXSI.NS", "CYIENT.NS", "LTTS.NS", "BSOFT.NS", "ZENSARTECH.NS"
+        "TATAELXSI.NS", "CYIENT.NS", "LTTS.NS", "BSOFT.NS", "ZENSARTECH.NS", "NAUKRI.NS"
     ],
     "Private Bank": [
         "HDFCBANK.NS", "ICICIBANK.NS", "KOTAKBANK.NS", "AXISBANK.NS", "INDUSINDBK.NS", 
         "FEDERALBNK.NS", "AUBANK.NS", "BANDHANBNK.NS", "IDFCFIRSTB.NS", "RBLBANK.NS", 
-        "CITYUNIONB.NS", "CUB.NS", "KARURVYSYA.NS"
+        "CITYUNIONB.NS", "CUB.NS", "KARURVYSYA.NS", "IDBI.NS"
     ],
     "PSU Bank": [
         "SBIN.NS", "PNB.NS", "BANKBARODA.NS", "CANBK.NS", "UNIONBANK.NS", 
-        "IOB.NS", "IDBI.NS", "INDIANB.NS", "UCOBANK.NS", "CENTRALBK.NS", "BANKINDIA.NS"
+        "IOB.NS", "INDIANB.NS", "UCOBANK.NS", "CENTRALBK.NS", "BANKINDIA.NS"
     ],
     "Financial Services & NBFC": [
         "BAJFINANCE.NS", "BAJAJFINSV.NS", "CHOLAFIN.NS", "MUTHOOTFIN.NS", "SBICARD.NS", 
         "SHRIRAMFIN.NS", "REC.NS", "PFC.NS", "MANAPPURAM.NS", "M&MFIN.NS", 
-        "LICHSGFIN.NS", "HUDCO.NS", "IREDA.NS"
+        "LICHSGFIN.NS", "HUDCO.NS", "IREDA.NS", "CHOLAHLDNG.NS", "SBFC.NS"
     ],
     "Automobile & Auto Ancillary": [
         "TATAMOTORS.NS", "M&M.NS", "MARUTI.NS", "BAJAJ-AUTO.NS", "HEROMOTOCO.NS", 
         "EICHERMOT.NS", "TVSMOTOR.NS", "ASHOKLEY.NS", "BHARATFORG.NS", "MOTHERSON.NS", 
-        "BOSCHLTD.NS", "MRF.NS", "BALKRISIND.NS", "TIINDIA.NS"
+        "BOSCHLTD.NS", "MRF.NS", "BALKRISIND.NS", "TIINDIA.NS", "ENDURANCE.NS"
     ],
     "Pharmaceuticals & Biotech": [
         "SUNPHARMA.NS", "DRREDDY.NS", "CIPLA.NS", "APOLLOHOSP.NS", "DIVISLAB.NS", 
         "LUPIN.NS", "ALKEM.NS", "TORNTPHARM.NS", "MANKIND.NS", "ZYDUSLIFE.NS", 
-        "GLENMARK.NS", "GRANULES.NS", "AUROPHARMA.NS", "IPCALAB.NS", "BIOCON.NS"
+        "GLENMARK.NS", "GRANULES.NS", "AUROPHARMA.NS", "IPCALAB.NS", "BIOCON.NS", "PFIZER.NS"
     ],
     "Energy, Oil & Power": [
         "RELIANCE.NS", "ONGC.NS", "BPCL.NS", "IOC.NS", "POWERGRID.NS", 
         "NTPC.NS", "TATAPOWER.NS", "ADANIGREEN.NS", "GAIL.NS", "COALINDIA.NS", 
-        "NHPC.NS", "SJVN.NS", "PETRONET.NS", "OIL.NS", "SUZLON.NS"
+        "NHPC.NS", "SJVN.NS", "PETRONET.NS", "OIL.NS", "SUZLON.NS", "TORNTPOWER.NS"
     ],
     "Metal, Mining & Infra": [
         "TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS", "VEDL.NS", "GRASIM.NS", 
         "ADANIENT.NS", "LT.NS", "JINDALSTEL.NS", "NATIONALUM.NS", "NMDC.NS", 
-        "SAIL.NS", "APLAPOLLO.NS", "HINDZINC.NS", "IRB.NS"
+        "SAIL.NS", "APLAPOLLO.NS", "HINDZINC.NS", "IRB.NS", "JSL.NS"
     ],
     "FMCG & Consumer Staples": [
         "HINDUNILVR.NS", "ITC.NS", "NESTLEIND.NS", "BRITANNIA.NS", "TATACONSUM.NS", 
         "DABUR.NS", "MARICO.NS", "COLPAL.NS", "GODREJCP.NS", "VBL.NS", 
-        "AWL.NS", "PATANJALI.NS", "EMAMILTD.NS"
+        "AWL.NS", "PATANJALI.NS", "EMAMILTD.NS", "RADICO.NS"
     ],
     "Consumer Durables & Retail": [
         "TITAN.NS", "ASIANPAINT.NS", "HAVELLS.NS", "VOLTAS.NS", "WHIRLPOOL.NS", 
         "DIXON.NS", "CROMPTON.NS", "POLYCAB.NS", "KEI.NS", "BERGEPAINT.NS", 
-        "TRENT.NS", "DMART.NS"
+        "TRENT.NS", "DMART.NS", "BLUEDART.NS"
     ],
     "Realty & Infrastructure": [
         "DLF.NS", "GODREJPROP.NS", "OBEROIRLTY.NS", "PHOENIXLTD.NS", "PRESTIGE.NS", 
-        "LODHA.NS", "NBCC.NS", "NCC.NS", "GRINFRA.NS"
+        "LODHA.NS", "NBCC.NS", "NCC.NS", "GRINFRA.NS", "PHOENIXLTD.NS"
     ],
     "Chemicals & Fertilizers": [
         "UPL.NS", "PIIND.NS", "SRF.NS", "AARTIIND.NS", "COROMANDEL.NS", 
-        "NAVINFLUOR.NS", "DEEPAKNTR.NS", "FACT.NS", "RCFL.NS", "GNFC.NS"
+        "NAVINFLUOR.NS", "DEEPAKNTR.NS", "FACT.NS", "GNFC.NS", "ATUL.NS"
     ],
-    "Defence & Capital Goods": [
+    "Defence & Midcap Capital Goods": [
         "HAL.NS", "BEL.NS", "BDL.NS", "COCHINSHIP.NS", "MAZDOCK.NS", 
-        "SIEMENS.NS", "ABB.NS", "CGPOWER.NS", "BHEL.NS"
+        "SIEMENS.NS", "ABB.NS", "CGPOWER.NS", "BHEL.NS", "CUMMINSIND.NS", "THERMAX.NS"
     ]
 }
 
@@ -174,6 +174,11 @@ def fetch_stock_fast(ticker):
             change_pct = ((curr_price - prev_close) / prev_close) * 100
             volume = int(df['Volume'].iloc[-1])
             
+            # --- PENNY STOCK & LOW LIQUIDITY FILTER ---
+            # Price must be >= 50 and volume must be >= 100,000 to eliminate junk/penny stocks
+            if curr_price < 50.0 or volume < 100000:
+                return None
+
             typical_price = (df['High'] + df['Low'] + df['Close']) / 3
             vwap = (typical_price * df['Volume']).sum() / df['Volume'].sum() if df['Volume'].sum() > 0 else curr_price
             
@@ -226,7 +231,7 @@ def execute_master_scan(all_tickers_tuple):
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
     st.markdown("### ⚡ Master Institutional Pro Terminal")
-    st.markdown("<span style='font-size: 12px; color: #10b981;'>Strict Sorted Feed | 30s Auto Refresh Active</span>", unsafe_allow_html=True)
+    st.markdown("<span style='font-size: 12px; color: #10b981;'>Midcap/Smallcap Active | Penny Stocks Filtered Out | 30s Refresh</span>", unsafe_allow_html=True)
 with col_h2:
     st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; font-size: 13px;'>🟢 IST: {get_ist_time().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
@@ -234,7 +239,7 @@ st.markdown("---")
 
 all_tickers = [t for sub in SECTOR_MAP.values() for t in sub]
 
-with st.spinner("⚡ Scanning & sorting market universe..."):
+with st.spinner("⚡ Scanning mid/smallcap universe & removing penny stocks..."):
     master_df, speed_ms = execute_master_scan(tuple(all_tickers))
 
 if 'selected_sector_click' not in st.session_state:
@@ -244,7 +249,6 @@ if 'selected_sector_click' not in st.session_state:
 if master_df.empty or "Symbol" not in master_df.columns:
     st.error("Market data fetch karne me samasya aa rahi hai. Kripya thodi der baad refresh karein.")
 else:
-    # Always sort master dataframe by Change (%) in descending order
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -257,7 +261,7 @@ else:
 
     # --- TAB 1: ALL SECTORS MATRIX ---
     with tab1:
-        st.caption(f"⚡ Feed Latency: {speed_ms} ms | Monitored Stocks: {len(master_df)} | Auto-Refresh: 30s")
+        st.caption(f"⚡ Feed Latency: {speed_ms} ms | Valid Quality Stocks Monitored: {len(master_df)} | Auto-Refresh: 30s")
         
         sector_summary = []
         for sec, tks in SECTOR_MAP.items():
@@ -297,16 +301,15 @@ else:
                                 st.session_state.selected_sector_click = row['Sector']
                                 st.rerun()
 
-    # --- TAB 2: SECTOR STOCKS (STRICT DECREASING SORT) ---
+    # --- TAB 2: SECTOR STOCKS ---
     with tab2:
         sel_sec = st.selectbox("Select Sector", list(SECTOR_MAP.keys()), index=list(SECTOR_MAP.keys()).index(st.session_state.selected_sector_click))
         st.session_state.selected_sector_click = sel_sec
         
         clean_tks = [t.replace(".NS", "") for t in SECTOR_MAP[sel_sec]]
-        # Strict sorting: Highest gainers to lowest
         stocks_subset = master_df[master_df["Symbol"].isin(clean_tks)].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         
-        st.write(f"Showing **{len(stocks_subset)}** stocks in **{sel_sec}** (Sorted by Highest to Lowest % Change):")
+        st.write(f"Showing all **{len(stocks_subset)}** filtered stocks in **{sel_sec}** (No Penny Stocks):")
         
         if not stocks_subset.empty:
             for i in range(0, len(stocks_subset), 4):
@@ -331,49 +334,64 @@ else:
 
     # --- TAB 3: GAINERS & LOSERS ---
     with tab3:
-        st.markdown("### 📊 Standard Market Gainers & Losers")
+        st.markdown("### 📊 Complete Market Gainers & Losers (Quality Filtered)")
         col_g, col_l = st.columns(2)
+        
         with col_g:
-            st.markdown("#### 🟢 Top Gainers (Highest % Change)")
-            top_g = master_df.sort_values(by="Change (%)", ascending=False).head(4).reset_index(drop=True)
-            g_cols = st.columns(2)
-            for idx, (_, r) in enumerate(top_g.iterrows()):
-                sym = r['Symbol']
-                tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
-                with g_cols[idx % 2]:
-                    st.markdown(f"""
-                        <div class="matrix-card-green">
-                            <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                            <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} (+{r['Change (%)']:.2f}%)</h3>
-                            <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,} | RVol: {r['RVol']}x</p>
-                            <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
-                        </div>
-                    """, unsafe_allow_html=True)
+            st.markdown("#### 🟢 All Gainers (Highest to Lowest)")
+            all_gainers = master_df[master_df["Change (%)"] > 0].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
+            st.write(f"Total Gainers: **{len(all_gainers)}**")
+            if not all_gainers.empty:
+                for i in range(0, len(all_gainers), 2):
+                    g_cols = st.columns(2)
+                    for j in range(2):
+                        if i + j < len(all_gainers):
+                            r = all_gainers.iloc[i + j]
+                            sym = r['Symbol']
+                            tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
+                            with g_cols[j]:
+                                st.markdown(f"""
+                                    <div class="matrix-card-green">
+                                        <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
+                                        <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} (+{r['Change (%)']:.2f}%)</h3>
+                                        <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,} | RVol: {r['RVol']}x</p>
+                                        <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                    </div>
+                                """, unsafe_allow_html=True)
+            else:
+                st.info("No gainers currently.")
                 
         with col_l:
-            st.markdown("#### 🔴 Top Losers (Lowest % Change)")
-            top_l = master_df.sort_values(by="Change (%)", ascending=True).head(4).reset_index(drop=True)
-            l_cols = st.columns(2)
-            for idx, (_, r) in enumerate(top_l.iterrows()):
-                sym = r['Symbol']
-                tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
-                with l_cols[idx % 2]:
-                    st.markdown(f"""
-                        <div class="matrix-card-red">
-                            <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                            <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:.2f}%)</h3>
-                            <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,} | RVol: {r['RVol']}x</p>
-                            <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
-                        </div>
-                    """, unsafe_allow_html=True)
+            st.markdown("#### 🔴 All Losers (Lowest to Highest)")
+            all_losers = master_df[master_df["Change (%)"] < 0].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
+            st.write(f"Total Losers: **{len(all_losers)}**")
+            if not all_losers.empty:
+                for i in range(0, len(all_losers), 2):
+                    l_cols = st.columns(2)
+                    for j in range(2):
+                        if i + j < len(all_losers):
+                            r = all_losers.iloc[i + j]
+                            sym = r['Symbol']
+                            tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
+                            with l_cols[j]:
+                                st.markdown(f"""
+                                    <div class="matrix-card-red">
+                                        <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
+                                        <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:.2f}%)</h3>
+                                        <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,} | RVol: {r['RVol']}x</p>
+                                        <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                    </div>
+                                """, unsafe_allow_html=True)
+            else:
+                st.info("No losers currently.")
 
-    # --- TAB 4: ORB BREAKOUT (STRICTLY SORTED) ---
+    # --- TAB 4: ORB BREAKOUT ---
     with tab4:
-        st.markdown("### ⚡ Standard 9:15 - 9:30 Opening Range Breakout")
+        st.markdown("### ⚡ Complete 9:15 - 9:30 Opening Range Breakout (Scrollable)")
         orb_bull = master_df[master_df["Status"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         orb_bear = master_df[master_df["Status"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
         
-        st.markdown("#### 🚀 Bullish ORB Breakouts (Decreasing Order)")
+        st.markdown(f"#### 🚀 All Bullish ORB Breakouts ({len(orb_bull)} stocks)")
         if not orb_bull.empty:
             for i in range(0, len(orb_bull), 4):
                 cols = st.columns(4)
@@ -394,7 +412,7 @@ else:
         else:
             st.info("No active bullish breakout right now.")
             
-        st.markdown("#### 🔻 Bearish ORB Breakdowns")
+        st.markdown(f"#### 🔻 All Bearish ORB Breakdowns ({len(orb_bear)} stocks)")
         if not orb_bear.empty:
             for i in range(0, len(orb_bear), 4):
                 cols = st.columns(4)
@@ -415,14 +433,14 @@ else:
         else:
             st.info("No active bearish breakdown right now.")
 
-    # --- TAB 5: VWAP + RVOL ORB PRO (STRICTLY SORTED) ---
+    # --- TAB 5: VWAP + RVOL ORB PRO ---
     with tab5:
-        st.markdown("### 💎 Institutional Pro Filter: ORB + VWAP + RVol Spike (>= 1.3x)")
+        st.markdown("### 💎 Complete Institutional Pro Setups (ORB + VWAP + RVol >= 1.3x - Scrollable)")
         
         pro_bull = master_df[master_df["ProStatus"].str.contains("PRO BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         pro_bear = master_df[master_df["ProStatus"].str.contains("PRO BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
         
-        st.markdown("#### 🚀 Pro Institutional Bullish Setups (Highest % Change First)")
+        st.markdown(f"#### 🚀 All Pro Bullish Setups ({len(pro_bull)} stocks)")
         if not pro_bull.empty:
             for i in range(0, len(pro_bull), 4):
                 cols = st.columns(4)
@@ -443,7 +461,7 @@ else:
         else:
             st.info("Abhi koi Pro Bullish setup active nahi hai.")
             
-        st.markdown("#### 🔻 Pro Institutional Bearish Setups")
+        st.markdown(f"#### 🔻 All Pro Bearish Setups ({len(pro_bear)} stocks)")
         if not pro_bear.empty:
             for i in range(0, len(pro_bear), 4):
                 cols = st.columns(4)
@@ -455,8 +473,8 @@ else:
                         with cols[j]:
                             st.markdown(f"""
                                 <div class="matrix-card-red">
-                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #b91c1c; padding: 2px 4px; border-radius: 4px;">PRO</span></h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:.2f}%)</h3>
+                                    <h5 style="margin: 0; code: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #b91c1c; padding: 2px 4px; border-radius: 4px;">PRO</span></h5>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
                                     <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: ₹{r['VWAP']} | RVol: <b>{r['RVol']}x</b></p>
                                     <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
