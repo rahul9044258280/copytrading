@@ -13,13 +13,13 @@ def get_ist_time():
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Institutional Zero-Delay Live Terminal",
+    page_title="Institutional Pro Intraday Terminal",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# --- HIGH-PERFORMANCE CINEMATIC CSS (4 CARDS PER ROW GRID) ---
+# --- HIGH-PERFORMANCE CINEMATIC CSS ---
 st.markdown("""
     <style>
     .stApp {
@@ -174,34 +174,55 @@ def fetch_stock_fast(ticker):
             change_pct = ((curr_price - prev_close) / prev_close) * 100
             volume = int(df['Volume'].iloc[-1])
             
+            # VWAP Calculation (Cumulative (Typical Price * Volume) / Cumulative Volume)
+            typical_price = (df['High'] + df['Low'] + df['Close']) / 3
+            vwap = (typical_price * df['Volume']).sum() / df['Volume'].sum() if df['Volume'].sum() > 0 else curr_price
+            
+            # Relative Volume (RVol) vs Average Volume
+            avg_vol = df['Volume'].mean() if len(df) > 1 else volume
+            rvol = round(volume / avg_vol, 2) if avg_vol > 0 else 1.0
+
+            # ORB range (9:15 to 9:30)
             morning = df.between_time("09:15", "09:30")
             orb_high = morning['High'].max() if not morning.empty else curr_price
             orb_low = morning['Low'].min() if not morning.empty else curr_price
             
             status = "NORMAL"
+            pro_status = "NORMAL"
+
+            # Standard ORB Status
             if curr_price > orb_high:
                 status = "BULLISH BREAKOUT 🚀"
             elif curr_price < orb_low:
                 status = "BEARISH BREAKDOWN 🔻"
+
+            # VWAP + RVol Pro Filtered Status (RVol >= 1.5 spike condition)
+            if curr_price > orb_high and curr_price > vwap and rvol >= 1.3:
+                pro_status = "PRO BULLISH 🚀"
+            elif curr_price < orb_low and curr_price < vwap and rvol >= 1.3:
+                pro_status = "PRO BEARISH 🔻"
 
             return {
                 "Symbol": ticker.replace(".NS", ""),
                 "LTP": round(curr_price, 2),
                 "Change (%)": round(change_pct, 2),
                 "Volume": volume,
+                "RVol": rvol,
+                "VWAP": round(vwap, 2),
                 "ORB High": round(orb_high, 2),
                 "ORB Low": round(orb_low, 2),
                 "Status": status,
+                "ProStatus": pro_status,
                 "Prev Close": round(prev_close, 2)
             }
     except Exception:
         return None
     return None
 
-@st.cache_data(ttl=5) # 5 second cache for high frequency refreshes
+@st.cache_data(ttl=5)
 def execute_master_scan(all_tickers_tuple):
     start_t = time.time()
-    with ThreadPoolExecutor(max_workers=100) as executor: # High Concurrency
+    with ThreadPoolExecutor(max_workers=100) as executor:
         results = list(executor.map(fetch_stock_fast, all_tickers_tuple))
     valid = [r for r in results if r is not None]
     exec_time = round((time.time() - start_t) * 1000, 2)
@@ -209,8 +230,8 @@ def execute_master_scan(all_tickers_tuple):
 
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
-    st.markdown("### ⚡ Zero-Delay Institutional Live Terminal")
-    st.markdown("<span style='font-size: 12px; color: #10b981;'>Real-Time WebSocket Feed Compatible Engine</span>", unsafe_allow_html=True)
+    st.markdown("### ⚡ Master Institutional Pro Terminal")
+    st.markdown("<span style='font-size: 12px; color: #10b981;'>VWAP & RVol Spike Engine Active | 5-Tab Layout</span>", unsafe_allow_html=True)
 with col_h2:
     st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; font-size: 13px;'>🟢 IST: {get_ist_time().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
@@ -218,17 +239,18 @@ st.markdown("---")
 
 all_tickers = [t for sub in SECTOR_MAP.values() for t in sub]
 
-with st.spinner("⚡ High-speed market sync active..."):
+with st.spinner("⚡ Scanning universe with VWAP & RVol filters..."):
     master_df, speed_ms = execute_master_scan(tuple(all_tickers))
 
 if 'selected_sector_click' not in st.session_state:
     st.session_state.selected_sector_click = list(SECTOR_MAP.keys())[0]
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📌 1. All Sectors Matrix", 
     "📂 2. Sector Stocks", 
     "🔥 3. Gainers & Losers", 
-    "⚡ 4. 9:15-9:30 ORB Breakout"
+    "⚡ 4. 9:15-9:30 ORB",
+    "💎 5. VWAP + RVol ORB Pro"
 ])
 
 # --- TAB 1: ALL SECTORS MATRIX ---
@@ -299,7 +321,7 @@ with tab2:
                             <div class="{card_cls}">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
                                 <h3 style="margin: 4px 0; color: #fff;">₹{stk['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {stk['Volume']:,}</p>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {stk['Volume']:,} | RVol: {stk['RVol']}x</p>
                                 <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView ↗</a>
                             </div>
                         """, unsafe_allow_html=True)
@@ -320,7 +342,7 @@ with tab3:
                     <div class="matrix-card-green">
                         <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
                         <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} (+{r['Change (%)']:.2f}%)</h3>
-                        <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
+                        <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,} | RVol: {r['RVol']}x</p>
                         <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView ↗</a>
                     </div>
                 """, unsafe_allow_html=True)
@@ -337,62 +359,14 @@ with tab3:
                     <div class="matrix-card-red">
                         <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
                         <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:.2f}%)</h3>
-                        <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
+                        <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,} | RVol: {r['RVol']}x</p>
                         <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView ↗</a>
                     </div>
                 """, unsafe_allow_html=True)
 
-    st.markdown("---")
-    st.markdown("### ⚡ ORB Breakout Verified Movers (4-Card Grid)")
-    
-    orb_bull = master_df[master_df["Status"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False)
-    orb_bear = master_df[master_df["Status"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True)
-    
-    st.markdown("#### 🚀 ORB Bullish Breakout Stocks")
-    if not orb_bull.empty:
-        for i in range(0, len(orb_bull), 4):
-            cols = st.columns(4)
-            for j in range(4):
-                if i + j < len(orb_bull):
-                    r = orb_bull.iloc[i + j]
-                    sym = r['Symbol']
-                    tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}"
-                    with cols[j]:
-                        st.markdown(f"""
-                            <div class="matrix-card-green">
-                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB High: ₹{r['ORB High']}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView ↗</a>
-                            </div>
-                        """, unsafe_allow_html=True)
-    else:
-        st.info("No stocks currently breaking ORB High.")
-        
-    st.markdown("#### 🔻 ORB Bearish Breakdown Stocks")
-    if not orb_bear.empty:
-        for i in range(0, len(orb_bear), 4):
-            cols = st.columns(4)
-            for j in range(4):
-                if i + j < len(orb_bear):
-                    r = orb_bear.iloc[i + j]
-                    sym = r['Symbol']
-                    tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}"
-                    with cols[j]:
-                        st.markdown(f"""
-                            <div class="matrix-card-red">
-                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:.2f}%)</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB Low: ₹{r['ORB Low']}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView ↗</a>
-                            </div>
-                        """, unsafe_allow_html=True)
-    else:
-        st.info("No stocks currently breaking ORB Low.")
-
-# --- TAB 4: ORB BREAKOUT EXCLUSIVE ---
+# --- TAB 4: ORB BREAKOUT ---
 with tab4:
-    st.markdown("### ⚡ Dedicated 9:15 - 9:30 Opening Range Breakout Matrix")
+    st.markdown("### ⚡ Standard 9:15 - 9:30 Opening Range Breakout")
     orb_bull = master_df[master_df["Status"].str.contains("BULLISH")]
     orb_bear = master_df[master_df["Status"].str.contains("BEARISH")]
     
@@ -430,7 +404,7 @@ with tab4:
                         st.markdown(f"""
                             <div class="matrix-card-red">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:.2f}%)</h3>
+                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB Low: ₹{r['ORB Low']}</p>
                                 <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView ↗</a>
                             </div>
@@ -438,6 +412,56 @@ with tab4:
     else:
         st.info("No active bearish breakdown right now.")
 
-# Fast auto-refresh interval
+# --- TAB 5: VWAP + RVOL ORB PRO EXCLUSIVE ---
+with tab5:
+    st.markdown("### 💎 Institutional Pro Filter: ORB + VWAP + RVol Spike (>= 1.3x)")
+    st.markdown("Yeh tab sirf wahi high-conviction trades dikhayega jahan ORB breakout ke sath VWAP filter aur Volume Spike dono match ho rahe hon.")
+    
+    pro_bull = master_df[master_df["ProStatus"].str.contains("PRO BULLISH")]
+    pro_bear = master_df[master_df["ProStatus"].str.contains("PRO BEARISH")]
+    
+    st.markdown("#### 🚀 Pro Institutional Bullish Setups (Above VWAP & High RVol)")
+    if not pro_bull.empty:
+        for i in range(0, len(pro_bull), 4):
+            cols = st.columns(4)
+            for j in range(4):
+                if i + j < len(pro_bull):
+                    r = pro_bull.iloc[i + j]
+                    sym = r['Symbol']
+                    tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}"
+                    with cols[j]:
+                        st.markdown(f"""
+                            <div class="matrix-card-green">
+                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #047857; padding: 2px 4px; border-radius: 4px;">PRO</span></h5>
+                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: ₹{r['VWAP']} | RVol: <b>{r['RVol']}x</b></p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView ↗</a>
+                            </div>
+                        """, unsafe_allow_html=True)
+    else:
+        st.info("Abhi koi Pro Bullish setup active nahi hai (Waiting for VWAP & Volume spike).")
+        
+    st.markdown("#### 🔻 Pro Institutional Bearish Setups (Below VWAP & High RVol)")
+    if not pro_bear.empty:
+        for i in range(0, len(pro_bear), 4):
+            cols = st.columns(4)
+            for j in range(4):
+                if i + j < len(pro_bear):
+                    r = pro_bear.iloc[i + j]
+                    sym = r['Symbol']
+                    tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}"
+                    with cols[j]:
+                        st.markdown(f"""
+                            <div class="matrix-card-red">
+                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #b91c1c; padding: 2px 4px; border-radius: 4px;">PRO</span></h5>
+                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: ₹{r['VWAP']} | RVol: <b>{r['RVol']}x</b></p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView ↗</a>
+                            </div>
+                        """, unsafe_allow_html=True)
+    else:
+        st.info("Abhi koi Pro Bearish setup active nahi hai.")
+
+# Fast refresh loop
 time.sleep(5)
 st.rerun()
