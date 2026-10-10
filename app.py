@@ -99,7 +99,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- EXPANDED UNIVERSE INCLUDING ALL CHARTINK NIFTY 500 MOVERS ---
+# --- EXPANDED UNIVERSE INCLUDING ALL NIFTY 500 MOVERS ---
 SECTOR_MAP = {
     "IT & Technology": [
         "TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "LTIM.NS", 
@@ -167,9 +167,7 @@ SECTOR_MAP = {
 def fetch_stock_fast(ticker):
     try:
         tk = yf.Ticker(ticker)
-        # Fetch 5m intraday data
         df = tk.history(period="2d", interval="5m")
-        # Fetch Daily data for 20 SMA Volume Calculation (Chartink Rule)
         df_daily = tk.history(period="2mo", interval="1d")
 
         if df is not None and len(df) >= 2 and df_daily is not None and len(df_daily) >= 20:
@@ -177,11 +175,8 @@ def fetch_stock_fast(ticker):
             prev_close = df['Close'].iloc[-2]
             change_pct = ((curr_price - prev_close) / prev_close) * 100
             
-            # Daily cumulative volume matching Chartink Total Volume
             today_daily_volume = int(df_daily['Volume'].iloc[-1])
-            
-            # --- CHARTINK EXACT RULE: Daily Volume > 3 * Daily SMA(20) Volume ---
-            sma_vol_20 = df_daily['Volume'].iloc[-21:-1].mean() # Previous 20 days SMA
+            sma_vol_20 = df_daily['Volume'].iloc[-21:-1].mean()
             vol_surge = True if today_daily_volume > (sma_vol_20 * 3) else False
 
             typical_price = (df['High'] + df['Low'] + df['Close']) / 3
@@ -191,12 +186,14 @@ def fetch_stock_fast(ticker):
             avg_vol = df['Volume'].mean() if len(df) > 1 else intraday_vol
             rvol = round(intraday_vol / avg_vol, 2) if avg_vol > 0 else 1.0
 
+            # 9:15 to 9:30 range calculation
             morning = df.between_time("09:15", "09:30")
             orb_high = morning['High'].max() if not morning.empty else curr_price
             orb_low = morning['Low'].min() if not morning.empty else curr_price
             
             status = "NORMAL"
             pro_status = "NORMAL"
+            surge_930_status = "NORMAL"
 
             if curr_price > orb_high:
                 status = "BULLISH BREAKOUT 🚀"
@@ -207,6 +204,13 @@ def fetch_stock_fast(ticker):
                 pro_status = "PRO BULLISH 🚀"
             elif curr_price < orb_low and curr_price < vwap and rvol >= 1.3:
                 pro_status = "PRO BEARISH 🔻"
+
+            # --- 9:30 AM INSTITUTIONAL VOL SURGE RULE ---
+            # Conditions: RVol >= 2.5x, Range Breakout, Price > VWAP (or < VWAP), Momentum >= 1.2%
+            if rvol >= 2.5 and curr_price > orb_high and curr_price > vwap and change_pct >= 1.2:
+                surge_930_status = "9:30 VOL SURGE BULLISH 🚀"
+            elif rvol >= 2.5 and curr_price < orb_low and curr_price < vwap and change_pct <= -1.2:
+                surge_930_status = "9:30 VOL SURGE BEARISH 🔻"
 
             return {
                 "Symbol": ticker.replace(".NS", ""),
@@ -221,6 +225,7 @@ def fetch_stock_fast(ticker):
                 "ORB Low": round(orb_low, 2),
                 "Status": status,
                 "ProStatus": pro_status,
+                "Surge930Status": surge_930_status,
                 "Prev Close": round(prev_close, 2)
             }
     except Exception:
@@ -239,7 +244,7 @@ def execute_master_scan(all_tickers_tuple):
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
     st.markdown("### ⚡ Master Institutional Pro Terminal")
-    st.markdown("<span style='font-size: 12px; color: #10b981;'>Exact Chartink Volume Surge Calculation Active | 30s Refresh</span>", unsafe_allow_html=True)
+    st.markdown("<span style='font-size: 12px; color: #10b981;'>9:30 AM Institutional Vol Surge Active | 30s Refresh</span>", unsafe_allow_html=True)
 with col_h2:
     st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; font-size: 13px;'>🟢 IST: {get_ist_time().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
@@ -247,7 +252,7 @@ st.markdown("---")
 
 all_tickers = [t for sub in SECTOR_MAP.values() for t in sub]
 
-with st.spinner("⚡ Scanning Chartink volume surge rules..."):
+with st.spinner("⚡ Scanning market universe & institutional volume surges..."):
     master_df, speed_ms = execute_master_scan(tuple(all_tickers))
 
 if 'selected_sector_click' not in st.session_state:
@@ -259,13 +264,14 @@ if master_df.empty or "Symbol" not in master_df.columns:
 else:
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
 
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "📌 1. All Sectors", 
         "📂 2. Sector Stocks", 
         "🔥 3. Gainers/Losers", 
         "⚡ 4. 9:15 ORB",
         "💎 5. VWAP+RVol",
-        "📊 6. Chartink Vol Surge"
+        "📊 6. Chartink Vol Surge",
+        "⚡ 7. Institutional Vol Surge (9:30 AM)"
     ])
 
     # --- TAB 1: ALL SECTORS MATRIX ---
@@ -494,8 +500,7 @@ else:
     # --- TAB 6: CHARTINK VOLUME SURGE SCANNER ---
     with tab6:
         st.markdown("### 📊 Chartink Volume Surge Scanner: Daily Vol > (20 SMA Vol * 3)")
-        st.markdown("Yeh tab wahi stocks dikhayega jinka current volume unke 20-day average volume ke 3 guna se zyada hai.")
-
+        
         surge_stocks = master_df[master_df["VolSurge"] == True].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         st.write(f"Total Volume Surge Stocks Found: **{len(surge_stocks)}**")
 
@@ -521,6 +526,56 @@ else:
                             """, unsafe_allow_html=True)
         else:
             st.info("Abhi koi stock Chartink volume surge criteria ko match nahi kar raha hai.")
+
+    # --- TAB 7: 9:30 AM INSTITUTIONAL VOL SURGE SCREENER ---
+    with tab7:
+        st.markdown("### ⚡ 9:30 AM Institutional Volume Surge Screener")
+        st.markdown("Is screener me wahi high-probability stocks filter honge jinhone 9:30 AM tak **Unusual Volume Surge (RVol >= 2.5x)**, **VWAP confirmation**, aur **Min 1.2% Momentum** ke sath ORB breakout kiya hai.")
+
+        surge_930_bull = master_df[master_df["Surge930Status"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
+        surge_930_bear = master_df[master_df["Surge930Status"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
+
+        st.markdown(f"#### 🚀 Bullish Vol Surge Movers ({len(surge_930_bull)} stocks)")
+        if not surge_930_bull.empty:
+            for i in range(0, len(surge_930_bull), 4):
+                cols = st.columns(4)
+                for j in range(4):
+                    if i + j < len(surge_930_bull):
+                        r = surge_930_bull.iloc[i + j]
+                        sym = r['Symbol']
+                        tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
+                        with cols[j]:
+                            st.markdown(f"""
+                                <div class="matrix-card-green">
+                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #059669; padding: 2px 4px; border-radius: 4px;">SURGE 2.5x</span></h5>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">RVol: <b>{r['RVol']}x</b> | VWAP: ₹{r['VWAP']}</p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                </div>
+                            """, unsafe_allow_html=True)
+        else:
+            st.info("Abhi koi Bullish 9:30 Vol Surge stock active nahi hai.")
+
+        st.markdown(f"#### 🔻 Bearish Vol Surge Movers ({len(surge_930_bear)} stocks)")
+        if not surge_930_bear.empty:
+            for i in range(0, len(surge_930_bear), 4):
+                cols = st.columns(4)
+                for j in range(4):
+                    if i + j < len(surge_930_bear):
+                        r = surge_930_bear.iloc[i + j]
+                        sym = r['Symbol']
+                        tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
+                        with cols[j]:
+                            st.markdown(f"""
+                                <div class="matrix-card-red">
+                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #dc2626; padding: 2px 4px; border-radius: 4px;">SURGE 2.5x</span></h5>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">RVol: <b>{r['RVol']}x</b> | VWAP: ₹{r['VWAP']}</p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                </div>
+                            """, unsafe_allow_html=True)
+        else:
+            st.info("Abhi koi Bearish 9:30 Vol Surge stock active nahi hai.")
 
 # Strict 30 Seconds Auto Refresh Loop
 time.sleep(30)
