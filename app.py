@@ -99,7 +99,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- EXPANDED UNIVERSE: LARGE, MID, & LIQUID SMALLCAPS (NO PENNY STOCKS) ---
+# --- EXPANDED UNIVERSE (LARGE, MID, & SMALLCAPS WITHOUT RESTRICTION) ---
 SECTOR_MAP = {
     "IT & Technology": [
         "TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "LTIM.NS", 
@@ -152,13 +152,13 @@ SECTOR_MAP = {
     ],
     "Realty & Infrastructure": [
         "DLF.NS", "GODREJPROP.NS", "OBEROIRLTY.NS", "PHOENIXLTD.NS", "PRESTIGE.NS", 
-        "LODHA.NS", "NBCC.NS", "NCC.NS", "GRINFRA.NS", "PHOENIXLTD.NS"
+        "LODHA.NS", "NBCC.NS", "NCC.NS", "GRINFRA.NS"
     ],
     "Chemicals & Fertilizers": [
         "UPL.NS", "PIIND.NS", "SRF.NS", "AARTIIND.NS", "COROMANDEL.NS", 
         "NAVINFLUOR.NS", "DEEPAKNTR.NS", "FACT.NS", "GNFC.NS", "ATUL.NS"
     ],
-    "Defence & Midcap Capital Goods": [
+    "Defence & Capital Goods": [
         "HAL.NS", "BEL.NS", "BDL.NS", "COCHINSHIP.NS", "MAZDOCK.NS", 
         "SIEMENS.NS", "ABB.NS", "CGPOWER.NS", "BHEL.NS", "CUMMINSIND.NS", "THERMAX.NS"
     ]
@@ -167,17 +167,25 @@ SECTOR_MAP = {
 def fetch_stock_fast(ticker):
     try:
         tk = yf.Ticker(ticker)
+        # 5m intraday history for LTP, VWAP, ORB
         df = tk.history(period="2d", interval="5m")
+        # Daily history for Chartink Volume Surge (20 SMA of Volume)
+        df_daily = tk.history(period="1mo", interval="1d")
+
         if df is not None and len(df) >= 2:
             curr_price = df['Close'].iloc[-1]
             prev_close = df['Close'].iloc[-2]
             change_pct = ((curr_price - prev_close) / prev_close) * 100
             volume = int(df['Volume'].iloc[-1])
             
-            # --- PENNY STOCK & LOW LIQUIDITY FILTER ---
-            # Price must be >= 50 and volume must be >= 100,000 to eliminate junk/penny stocks
-            if curr_price < 50.0 or volume < 100000:
-                return None
+            # --- CHARTINK VOLUME SURGE CALCULATION (Volume > 20 SMA Volume * 3)[cite: 3] ---
+            vol_surge = False
+            sma_vol_20 = 0
+            if df_daily is not None and len(df_daily) >= 20:
+                sma_vol_series = df_daily['Volume'].rolling(window=20).mean()
+                sma_vol_20 = sma_vol_series.iloc[-1]
+                if volume > (sma_vol_20 * 3):
+                    vol_surge = True
 
             typical_price = (df['High'] + df['Low'] + df['Close']) / 3
             vwap = (typical_price * df['Volume']).sum() / df['Volume'].sum() if df['Volume'].sum() > 0 else curr_price
@@ -207,6 +215,8 @@ def fetch_stock_fast(ticker):
                 "LTP": round(curr_price, 2),
                 "Change (%)": round(change_pct, 2),
                 "Volume": volume,
+                "VolSurge": vol_surge,
+                "SMA_Vol": int(sma_vol_20),
                 "RVol": rvol,
                 "VWAP": round(vwap, 2),
                 "ORB High": round(orb_high, 2),
@@ -231,7 +241,7 @@ def execute_master_scan(all_tickers_tuple):
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
     st.markdown("### ⚡ Master Institutional Pro Terminal")
-    st.markdown("<span style='font-size: 12px; color: #10b981;'>Midcap/Smallcap Active | Penny Stocks Filtered Out | 30s Refresh</span>", unsafe_allow_html=True)
+    st.markdown("<span style='font-size: 12px; color: #10b981;'>Chartink 3x Vol Surge Scanner Added | 30s Refresh</span>", unsafe_allow_html=True)
 with col_h2:
     st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; font-size: 13px;'>🟢 IST: {get_ist_time().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
@@ -239,7 +249,7 @@ st.markdown("---")
 
 all_tickers = [t for sub in SECTOR_MAP.values() for t in sub]
 
-with st.spinner("⚡ Scanning mid/smallcap universe & removing penny stocks..."):
+with st.spinner("⚡ Scanning market universe & checking volume surges..."):
     master_df, speed_ms = execute_master_scan(tuple(all_tickers))
 
 if 'selected_sector_click' not in st.session_state:
@@ -251,17 +261,18 @@ if master_df.empty or "Symbol" not in master_df.columns:
 else:
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📌 1. All Sectors Matrix", 
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "📌 1. All Sectors", 
         "📂 2. Sector Stocks", 
-        "🔥 3. Gainers & Losers", 
-        "⚡ 4. 9:15-9:30 ORB",
-        "💎 5. VWAP + RVol ORB Pro"
+        "🔥 3. Gainers/Losers", 
+        "⚡ 4. 9:15 ORB",
+        "💎 5. VWAP+RVol",
+        "📊 6. Chartink Vol Surge"
     ])
 
     # --- TAB 1: ALL SECTORS MATRIX ---
     with tab1:
-        st.caption(f"⚡ Feed Latency: {speed_ms} ms | Valid Quality Stocks Monitored: {len(master_df)} | Auto-Refresh: 30s")
+        st.caption(f"⚡ Feed Latency: {speed_ms} ms | Stocks Monitored: {len(master_df)} | Auto-Refresh: 30s")
         
         sector_summary = []
         for sec, tks in SECTOR_MAP.items():
@@ -309,7 +320,7 @@ else:
         clean_tks = [t.replace(".NS", "") for t in SECTOR_MAP[sel_sec]]
         stocks_subset = master_df[master_df["Symbol"].isin(clean_tks)].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         
-        st.write(f"Showing all **{len(stocks_subset)}** filtered stocks in **{sel_sec}** (No Penny Stocks):")
+        st.write(f"Showing all **{len(stocks_subset)}** stocks in **{sel_sec}**:")
         
         if not stocks_subset.empty:
             for i in range(0, len(stocks_subset), 4):
@@ -334,11 +345,11 @@ else:
 
     # --- TAB 3: GAINERS & LOSERS ---
     with tab3:
-        st.markdown("### 📊 Complete Market Gainers & Losers (Quality Filtered)")
+        st.markdown("### 📊 Complete Market Gainers & Losers")
         col_g, col_l = st.columns(2)
         
         with col_g:
-            st.markdown("#### 🟢 All Gainers (Highest to Lowest)")
+            st.markdown("#### 🟢 All Gainers")
             all_gainers = master_df[master_df["Change (%)"] > 0].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
             st.write(f"Total Gainers: **{len(all_gainers)}**")
             if not all_gainers.empty:
@@ -362,7 +373,7 @@ else:
                 st.info("No gainers currently.")
                 
         with col_l:
-            st.markdown("#### 🔴 All Losers (Lowest to Highest)")
+            st.markdown("#### 🔴 All Losers")
             all_losers = master_df[master_df["Change (%)"] < 0].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
             st.write(f"Total Losers: **{len(all_losers)}**")
             if not all_losers.empty:
@@ -387,7 +398,7 @@ else:
 
     # --- TAB 4: ORB BREAKOUT ---
     with tab4:
-        st.markdown("### ⚡ Complete 9:15 - 9:30 Opening Range Breakout (Scrollable)")
+        st.markdown("### ⚡ Complete 9:15 - 9:30 Opening Range Breakout")
         orb_bull = master_df[master_df["Status"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         orb_bear = master_df[master_df["Status"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
         
@@ -435,7 +446,7 @@ else:
 
     # --- TAB 5: VWAP + RVOL ORB PRO ---
     with tab5:
-        st.markdown("### 💎 Complete Institutional Pro Setups (ORB + VWAP + RVol >= 1.3x - Scrollable)")
+        st.markdown("### 💎 Complete Institutional Pro Setups (ORB + VWAP + RVol >= 1.3x)")
         
         pro_bull = master_df[master_df["ProStatus"].str.contains("PRO BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         pro_bear = master_df[master_df["ProStatus"].str.contains("PRO BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
@@ -473,7 +484,7 @@ else:
                         with cols[j]:
                             st.markdown(f"""
                                 <div class="matrix-card-red">
-                                    <h5 style="margin: 0; code: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #b91c1c; padding: 2px 4px; border-radius: 4px;">PRO</span></h5>
+                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #b91c1c; padding: 2px 4px; border-radius: 4px;">PRO</span></h5>
                                     <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
                                     <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: ₹{r['VWAP']} | RVol: <b>{r['RVol']}x</b></p>
                                     <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
@@ -481,6 +492,37 @@ else:
                             """, unsafe_allow_html=True)
         else:
             st.info("Abhi koi Pro Bearish setup active nahi hai.")
+
+    # --- TAB 6: CHARTINK VOLUME SURGE SCANNER (Daily Vol > Daily SMA(20) * 3)[cite: 3] ---
+    with tab6:
+        st.markdown("### 📊 Chartink Volume Surge Scanner: Daily Vol > (20 SMA Vol * 3)[cite: 3]")
+        st.markdown("Yeh tab wahi stocks dikhayega jinka current volume unke 20-day average volume ke 3 guna se zyada hai[cite: 3].")
+
+        surge_stocks = master_df[master_df["VolSurge"] == True].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
+        st.write(f"Total Volume Surge Stocks Found: **{len(surge_stocks)}**")
+
+        if not surge_stocks.empty:
+            for i in range(0, len(surge_stocks), 4):
+                cols = st.columns(4)
+                for j in range(4):
+                    if i + j < len(surge_stocks):
+                        r = surge_stocks.iloc[i + j]
+                        sym = r['Symbol']
+                        chg_val = r['Change (%)']
+                        card_cls = "matrix-card-green" if chg_val >= 0 else "matrix-card-red"
+                        tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
+                        
+                        with cols[j]:
+                            st.markdown(f"""
+                                <div class="{card_cls}">
+                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #2563eb; padding: 2px 4px; border-radius: 4px;">SURGE</span></h5>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,} | 20SMA: {r['SMA_Vol']:,}</p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                </div>
+                            """, unsafe_allow_html=True)
+        else:
+            st.info("Abhi koi stock Chartink volume surge criteria (3x 20SMA Vol) ko match nahi kar raha hai.")
 
 # Strict 30 Seconds Auto Refresh Loop
 time.sleep(30)
