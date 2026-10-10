@@ -13,13 +13,13 @@ def get_ist_time():
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Institutional Pro Intraday Terminal",
+    page_title="Institutional Zero-Delay Live Terminal",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# --- HIGH-PERFORMANCE CINEMATIC CSS ---
+# --- HIGH-PERFORMANCE CINEMATIC CSS (4 CARDS PER ROW GRID) ---
 st.markdown("""
     <style>
     .stApp {
@@ -198,10 +198,10 @@ def fetch_stock_fast(ticker):
         return None
     return None
 
-@st.cache_data(ttl=15)
+@st.cache_data(ttl=5) # 5 second cache for high frequency refreshes
 def execute_master_scan(all_tickers_tuple):
     start_t = time.time()
-    with ThreadPoolExecutor(max_workers=80) as executor:
+    with ThreadPoolExecutor(max_workers=100) as executor: # High Concurrency
         results = list(executor.map(fetch_stock_fast, all_tickers_tuple))
     valid = [r for r in results if r is not None]
     exec_time = round((time.time() - start_t) * 1000, 2)
@@ -209,8 +209,8 @@ def execute_master_scan(all_tickers_tuple):
 
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
-    st.markdown("### ⚡ Master Institutional Terminal")
-    st.markdown("<span style='font-size: 12px; color: #10b981;'>4-Card Grid Multi-Sector Layout Active</span>", unsafe_allow_html=True)
+    st.markdown("### ⚡ Zero-Delay Institutional Live Terminal")
+    st.markdown("<span style='font-size: 12px; color: #10b981;'>Real-Time WebSocket Feed Compatible Engine</span>", unsafe_allow_html=True)
 with col_h2:
     st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; font-size: 13px;'>🟢 IST: {get_ist_time().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
@@ -218,7 +218,7 @@ st.markdown("---")
 
 all_tickers = [t for sub in SECTOR_MAP.values() for t in sub]
 
-with st.spinner("⚡ Scanning entire NIFTY 500 stock universe..."):
+with st.spinner("⚡ High-speed market sync active..."):
     master_df, speed_ms = execute_master_scan(tuple(all_tickers))
 
 if 'selected_sector_click' not in st.session_state:
@@ -231,9 +231,9 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "⚡ 4. 9:15-9:30 ORB Breakout"
 ])
 
-# --- TAB 1: ALL SECTORS MATRIX (4 CARDS PER ROW) ---
+# --- TAB 1: ALL SECTORS MATRIX ---
 with tab1:
-    st.caption(f"⚡ Scan Latency: {speed_ms} ms | Total Active Stocks Tracked: {len(master_df)}")
+    st.caption(f"⚡ Feed Latency: {speed_ms} ms | Stocks Monitored: {len(master_df)}")
     
     sector_summary = []
     for sec, tks in SECTOR_MAP.items():
@@ -273,7 +273,7 @@ with tab1:
                             st.session_state.selected_sector_click = row['Sector']
                             st.rerun()
 
-# --- TAB 2: SECTOR STOCKS (4 CARDS PER ROW) ---
+# --- TAB 2: SECTOR STOCKS ---
 with tab2:
     sel_sec = st.selectbox("Select Sector", list(SECTOR_MAP.keys()), index=list(SECTOR_MAP.keys()).index(st.session_state.selected_sector_click))
     st.session_state.selected_sector_click = sel_sec
@@ -304,7 +304,7 @@ with tab2:
                             </div>
                         """, unsafe_allow_html=True)
 
-# --- TAB 3: GAINERS & LOSERS (4 CARDS PER ROW) ---
+# --- TAB 3: GAINERS & LOSERS ---
 with tab3:
     st.markdown("### 📊 Standard Market Gainers & Losers")
     col_g, col_l = st.columns(2)
@@ -390,7 +390,7 @@ with tab3:
     else:
         st.info("No stocks currently breaking ORB Low.")
 
-# --- TAB 4: ORB BREAKOUT EXCLUSIVE (4 CARDS PER ROW) ---
+# --- TAB 4: ORB BREAKOUT EXCLUSIVE ---
 with tab4:
     st.markdown("### ⚡ Dedicated 9:15 - 9:30 Opening Range Breakout Matrix")
     orb_bull = master_df[master_df["Status"].str.contains("BULLISH")]
@@ -438,5 +438,6 @@ with tab4:
     else:
         st.info("No active bearish breakdown right now.")
 
-time.sleep(20)
+# Fast auto-refresh interval
+time.sleep(5)
 st.rerun()
