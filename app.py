@@ -99,12 +99,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- EXPANDED UNIVERSE (LARGE, MID, & SMALLCAPS WITHOUT RESTRICTION) ---
+# --- EXPANDED UNIVERSE INCLUDING ALL CHARTINK NIFTY 500 MOVERS ---
 SECTOR_MAP = {
     "IT & Technology": [
         "TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "LTIM.NS", 
         "MPHASIS.NS", "COFORGE.NS", "PERSISTENT.NS", "OFSS.NS", "KPITTECH.NS", 
-        "TATAELXSI.NS", "CYIENT.NS", "LTTS.NS", "BSOFT.NS", "ZENSARTECH.NS", "NAUKRI.NS"
+        "TATAELXSI.NS", "CYIENT.NS", "LTTS.NS", "BSOFT.NS", "ZENSARTECH.NS", "INTELLECT.NS", "BBOX.NS"
     ],
     "Private Bank": [
         "HDFCBANK.NS", "ICICIBANK.NS", "KOTAKBANK.NS", "AXISBANK.NS", "INDUSINDBK.NS", 
@@ -118,80 +118,78 @@ SECTOR_MAP = {
     "Financial Services & NBFC": [
         "BAJFINANCE.NS", "BAJAJFINSV.NS", "CHOLAFIN.NS", "MUTHOOTFIN.NS", "SBICARD.NS", 
         "SHRIRAMFIN.NS", "REC.NS", "PFC.NS", "MANAPPURAM.NS", "M&MFIN.NS", 
-        "LICHSGFIN.NS", "HUDCO.NS", "IREDA.NS", "CHOLAHLDNG.NS", "SBFC.NS"
+        "LICHSGFIN.NS", "HUDCO.NS", "IREDA.NS", "CHOLAHLDNG.NS"
     ],
     "Automobile & Auto Ancillary": [
         "TATAMOTORS.NS", "M&M.NS", "MARUTI.NS", "BAJAJ-AUTO.NS", "HEROMOTOCO.NS", 
         "EICHERMOT.NS", "TVSMOTOR.NS", "ASHOKLEY.NS", "BHARATFORG.NS", "MOTHERSON.NS", 
-        "BOSCHLTD.NS", "MRF.NS", "BALKRISIND.NS", "TIINDIA.NS", "ENDURANCE.NS"
+        "BOSCHLTD.NS", "MRF.NS", "BALKRISIND.NS", "TIINDIA.NS"
     ],
     "Pharmaceuticals & Biotech": [
         "SUNPHARMA.NS", "DRREDDY.NS", "CIPLA.NS", "APOLLOHOSP.NS", "DIVISLAB.NS", 
         "LUPIN.NS", "ALKEM.NS", "TORNTPHARM.NS", "MANKIND.NS", "ZYDUSLIFE.NS", 
-        "GLENMARK.NS", "GRANULES.NS", "AUROPHARMA.NS", "IPCALAB.NS", "BIOCON.NS", "PFIZER.NS"
+        "GLENMARK.NS", "GRANULES.NS", "AUROPHARMA.NS", "IPCALAB.NS", "BIOCON.NS"
     ],
     "Energy, Oil & Power": [
         "RELIANCE.NS", "ONGC.NS", "BPCL.NS", "IOC.NS", "POWERGRID.NS", 
         "NTPC.NS", "TATAPOWER.NS", "ADANIGREEN.NS", "GAIL.NS", "COALINDIA.NS", 
-        "NHPC.NS", "SJVN.NS", "PETRONET.NS", "OIL.NS", "SUZLON.NS", "TORNTPOWER.NS"
+        "NHPC.NS", "SJVN.NS", "PETRONET.NS", "OIL.NS", "SUZLON.NS", "INOXWIND.NS", "ADANIPORTS.NS"
     ],
     "Metal, Mining & Infra": [
         "TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS", "VEDL.NS", "GRASIM.NS", 
         "ADANIENT.NS", "LT.NS", "JINDALSTEL.NS", "NATIONALUM.NS", "NMDC.NS", 
-        "SAIL.NS", "APLAPOLLO.NS", "HINDZINC.NS", "IRB.NS", "JSL.NS"
+        "SAIL.NS", "APLAPOLLO.NS", "HINDZINC.NS", "IRB.NS", "KEC.NS", "NCC.NS", "GMRAIRPORT.NS"
     ],
     "FMCG & Consumer Staples": [
         "HINDUNILVR.NS", "ITC.NS", "NESTLEIND.NS", "BRITANNIA.NS", "TATACONSUM.NS", 
         "DABUR.NS", "MARICO.NS", "COLPAL.NS", "GODREJCP.NS", "VBL.NS", 
-        "AWL.NS", "PATANJALI.NS", "EMAMILTD.NS", "RADICO.NS"
+        "AWL.NS", "PATANJALI.NS"
     ],
     "Consumer Durables & Retail": [
         "TITAN.NS", "ASIANPAINT.NS", "HAVELLS.NS", "VOLTAS.NS", "WHIRLPOOL.NS", 
         "DIXON.NS", "CROMPTON.NS", "POLYCAB.NS", "KEI.NS", "BERGEPAINT.NS", 
-        "TRENT.NS", "DMART.NS", "BLUEDART.NS"
+        "TRENT.NS", "DMART.NS"
     ],
     "Realty & Infrastructure": [
         "DLF.NS", "GODREJPROP.NS", "OBEROIRLTY.NS", "PHOENIXLTD.NS", "PRESTIGE.NS", 
-        "LODHA.NS", "NBCC.NS", "NCC.NS", "GRINFRA.NS"
+        "LODHA.NS", "NBCC.NS", "GRINFRA.NS"
     ],
     "Chemicals & Fertilizers": [
         "UPL.NS", "PIIND.NS", "SRF.NS", "AARTIIND.NS", "COROMANDEL.NS", 
-        "NAVINFLUOR.NS", "DEEPAKNTR.NS", "FACT.NS", "GNFC.NS", "ATUL.NS"
+        "NAVINFLUOR.NS", "DEEPAKNTR.NS", "FACT.NS", "GNFC.NS"
     ],
     "Defence & Capital Goods": [
         "HAL.NS", "BEL.NS", "BDL.NS", "COCHINSHIP.NS", "MAZDOCK.NS", 
-        "SIEMENS.NS", "ABB.NS", "CGPOWER.NS", "BHEL.NS", "CUMMINSIND.NS", "THERMAX.NS"
+        "SIEMENS.NS", "ABB.NS", "CGPOWER.NS", "BHEL.NS", "THERMAX.NS"
     ]
 }
 
 def fetch_stock_fast(ticker):
     try:
         tk = yf.Ticker(ticker)
-        # 5m intraday history for LTP, VWAP, ORB
+        # Fetch 5m intraday data
         df = tk.history(period="2d", interval="5m")
-        # Daily history for Chartink Volume Surge (20 SMA of Volume)
-        df_daily = tk.history(period="1mo", interval="1d")
+        # Fetch Daily data for 20 SMA Volume Calculation (Chartink Rule)
+        df_daily = tk.history(period="2mo", interval="1d")
 
-        if df is not None and len(df) >= 2:
+        if df is not None and len(df) >= 2 and df_daily is not None and len(df_daily) >= 20:
             curr_price = df['Close'].iloc[-1]
             prev_close = df['Close'].iloc[-2]
             change_pct = ((curr_price - prev_close) / prev_close) * 100
-            volume = int(df['Volume'].iloc[-1])
             
-            # --- CHARTINK VOLUME SURGE CALCULATION (Volume > 20 SMA Volume * 3)[cite: 3] ---
-            vol_surge = False
-            sma_vol_20 = 0
-            if df_daily is not None and len(df_daily) >= 20:
-                sma_vol_series = df_daily['Volume'].rolling(window=20).mean()
-                sma_vol_20 = sma_vol_series.iloc[-1]
-                if volume > (sma_vol_20 * 3):
-                    vol_surge = True
+            # Daily cumulative volume matching Chartink Total Volume
+            today_daily_volume = int(df_daily['Volume'].iloc[-1])
+            
+            # --- CHARTINK EXACT RULE: Daily Volume > 3 * Daily SMA(20) Volume ---
+            sma_vol_20 = df_daily['Volume'].iloc[-21:-1].mean() # Previous 20 days SMA
+            vol_surge = True if today_daily_volume > (sma_vol_20 * 3) else False
 
             typical_price = (df['High'] + df['Low'] + df['Close']) / 3
             vwap = (typical_price * df['Volume']).sum() / df['Volume'].sum() if df['Volume'].sum() > 0 else curr_price
             
-            avg_vol = df['Volume'].mean() if len(df) > 1 else volume
-            rvol = round(volume / avg_vol, 2) if avg_vol > 0 else 1.0
+            intraday_vol = int(df['Volume'].iloc[-1])
+            avg_vol = df['Volume'].mean() if len(df) > 1 else intraday_vol
+            rvol = round(intraday_vol / avg_vol, 2) if avg_vol > 0 else 1.0
 
             morning = df.between_time("09:15", "09:30")
             orb_high = morning['High'].max() if not morning.empty else curr_price
@@ -214,7 +212,7 @@ def fetch_stock_fast(ticker):
                 "Symbol": ticker.replace(".NS", ""),
                 "LTP": round(curr_price, 2),
                 "Change (%)": round(change_pct, 2),
-                "Volume": volume,
+                "Volume": today_daily_volume,
                 "VolSurge": vol_surge,
                 "SMA_Vol": int(sma_vol_20),
                 "RVol": rvol,
@@ -241,7 +239,7 @@ def execute_master_scan(all_tickers_tuple):
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
     st.markdown("### ⚡ Master Institutional Pro Terminal")
-    st.markdown("<span style='font-size: 12px; color: #10b981;'>Chartink 3x Vol Surge Scanner Added | 30s Refresh</span>", unsafe_allow_html=True)
+    st.markdown("<span style='font-size: 12px; color: #10b981;'>Exact Chartink Volume Surge Calculation Active | 30s Refresh</span>", unsafe_allow_html=True)
 with col_h2:
     st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; font-size: 13px;'>🟢 IST: {get_ist_time().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
@@ -249,7 +247,7 @@ st.markdown("---")
 
 all_tickers = [t for sub in SECTOR_MAP.values() for t in sub]
 
-with st.spinner("⚡ Scanning market universe & checking volume surges..."):
+with st.spinner("⚡ Scanning Chartink volume surge rules..."):
     master_df, speed_ms = execute_master_scan(tuple(all_tickers))
 
 if 'selected_sector_click' not in st.session_state:
@@ -493,10 +491,10 @@ else:
         else:
             st.info("Abhi koi Pro Bearish setup active nahi hai.")
 
-    # --- TAB 6: CHARTINK VOLUME SURGE SCANNER (Daily Vol > Daily SMA(20) * 3)[cite: 3] ---
+    # --- TAB 6: CHARTINK VOLUME SURGE SCANNER ---
     with tab6:
-        st.markdown("### 📊 Chartink Volume Surge Scanner: Daily Vol > (20 SMA Vol * 3)[cite: 3]")
-        st.markdown("Yeh tab wahi stocks dikhayega jinka current volume unke 20-day average volume ke 3 guna se zyada hai[cite: 3].")
+        st.markdown("### 📊 Chartink Volume Surge Scanner: Daily Vol > (20 SMA Vol * 3)")
+        st.markdown("Yeh tab wahi stocks dikhayega jinka current volume unke 20-day average volume ke 3 guna se zyada hai.")
 
         surge_stocks = master_df[master_df["VolSurge"] == True].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         st.write(f"Total Volume Surge Stocks Found: **{len(surge_stocks)}**")
@@ -522,7 +520,7 @@ else:
                                 </div>
                             """, unsafe_allow_html=True)
         else:
-            st.info("Abhi koi stock Chartink volume surge criteria (3x 20SMA Vol) ko match nahi kar raha hai.")
+            st.info("Abhi koi stock Chartink volume surge criteria ko match nahi kar raha hai.")
 
 # Strict 30 Seconds Auto Refresh Loop
 time.sleep(30)
