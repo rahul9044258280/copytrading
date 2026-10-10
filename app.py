@@ -70,7 +70,6 @@ st.markdown("""
         background: rgba(255, 255, 255, 0.2);
     }
 
-    /* TradingView Link Styling inside Cards */
     .tv-link {
         display: inline-block;
         margin-top: 8px;
@@ -99,17 +98,23 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- COMPLETE ALL-SECTOR UNIVERSE ---
+# --- COMPLETE MASTER NSE SECTOR UNIVERSE (NO SECTOR LEFT) ---
 SECTOR_MAP = {
-    "IT & Technology": ["TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "LTIM.NS", "MPHASIS.NS", "COFORGE.NS"],
-    "Banking & Financials": ["HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "KOTAKBANK.NS", "AXISBANK.NS", "INDUSINDBK.NS", "BAJFINANCE.NS"],
-    "Automobile": ["TATAMOTORS.NS", "M&M.NS", "MARUTI.NS", "BAJAJ-AUTO.NS", "HEROMOTOCO.NS", "EICHERMOT.NS", "TVSMOTOR.NS"],
-    "Pharmaceuticals": ["SUNPHARMA.NS", "DRREDDY.NS", "CIPLA.NS", "APOLLOHOSP.NS", "DIVISLAB.NS", "LUPIN.NS", "ALKEM.NS"],
-    "Energy & Oil/Gas": ["RELIANCE.NS", "ONGC.NS", "BPCL.NS", "IOC.NS", "POWERGRID.NS", "NTPC.NS", "TATAPOWER.NS"],
-    "Metal & Infrastructure": ["TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS", "VEDL.NS", "GRASIM.NS", "ADANIENT.NS", "LT.NS"],
-    "FMCG": ["HINDUNILVR.NS", "ITC.NS", "NESTLEIND.NS", "BRITANNIA.NS", "TATACONSUM.NS", "DABUR.NS", "MARICO.NS"],
+    "IT & Technology": ["TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "LTIM.NS", "MPHASIS.NS", "COFORGE.NS", "PERSISTENT.NS", "OFSS.NS"],
+    "Private Bank": ["HDFCBANK.NS", "ICICIBANK.NS", "KOTAKBANK.NS", "AXISBANK.NS", "INDUSINDBK.NS", "FEDERALBNK.NS", "AUBANK.NS"],
+    "PSU Bank": ["SBIN.NS", "PNB.NS", "BANKBARODA.NS", "CANBK.NS", "UNIONBANK.NS", "IOB.NS", "IDBI.NS"],
+    "Financial Services": ["BAJFINANCE.NS", "BAJAJFINSV.NS", "CHOLAFIN.NS", "MUTHOOTFIN.NS", "SBICARD.NS", "SHRIRAMFIN.NS"],
+    "Automobile": ["TATAMOTORS.NS", "M&M.NS", "MARUTI.NS", "BAJAJ-AUTO.NS", "HEROMOTOCO.NS", "EICHERMOT.NS", "TVSMOTOR.NS", "ASHOKLEY.NS"],
+    "Pharmaceuticals": ["SUNPHARMA.NS", "DRREDDY.NS", "CIPLA.NS", "APOLLOHOSP.NS", "DIVISLAB.NS", "LUPIN.NS", "ALKEM.NS", "TORNTPHARM.NS"],
+    "Healthcare": ["MAXHEALTH.NS", "LALPATHLAB.NS", "METROPOLIS.NS", "SYNGENE.NS", "Fortis.NS"],
+    "Energy & Oil/Gas": ["RELIANCE.NS", "ONGC.NS", "BPCL.NS", "IOC.NS", "POWERGRID.NS", "NTPC.NS", "TATAPOWER.NS", "ADANIGREEN.NS", "GAIL.NS"],
+    "Metal & Infrastructure": ["TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS", "VEDL.NS", "GRASIM.NS", "ADANIENT.NS", "LT.NS", "JINDALSTEL.NS", "COALINDIA.NS"],
+    "FMCG": ["HINDUNILVR.NS", "ITC.NS", "NESTLEIND.NS", "BRITANNIA.NS", "TATACONSUM.NS", "DABUR.NS", "MARICO.NS", "COLPAL.NS"],
+    "Consumer Durables": ["TITAN.NS", "ASIANPAINT.NS", "HAVELLS.NS", "VOLTAS.NS", "WHIRLPOOL.NS", "DIXON.NS"],
     "Media & Entertainment": ["SUNTV.NS", "PVRINOX.NS", "ZEEL.NS", "NETWORK18.NS"],
-    "Realty & Construction": ["DLF.NS", "GodrejProp.NS", "OBEROIRLTY.NS", "PHOENIXLTD.NS", "PRESTIGE.NS"]
+    "Realty & Construction": ["DLF.NS", "GODREJPROP.NS", "OBEROIRLTY.NS", "PHOENIXLTD.NS", "PRESTIGE.NS", "LODHA.NS"],
+    "Chemicals & Fertilizers": ["UPL.NS", "PIIND.NS", "SRF.NS", "AARTIIND.NS", "COROMANDEL.NS", "NAVINFLUOR.NS"],
+    "Telecom & Services": ["BHARTIARTL.NS", "IDEA.NS", "TATACOMM.NS", "INDUSINW.NS"]
 }
 
 def fetch_stock_fast(ticker):
@@ -149,7 +154,7 @@ def fetch_stock_fast(ticker):
 @st.cache_data(ttl=15)
 def execute_master_scan(all_tickers_tuple):
     start_t = time.time()
-    with ThreadPoolExecutor(max_workers=50) as executor:
+    with ThreadPoolExecutor(max_workers=60) as executor: # Increased workers for all sectors
         results = list(executor.map(fetch_stock_fast, all_tickers_tuple))
     valid = [r for r in results if r is not None]
     exec_time = round((time.time() - start_t) * 1000, 2)
@@ -157,8 +162,8 @@ def execute_master_scan(all_tickers_tuple):
 
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
-    st.markdown("### ⚡ Institutional Pro Intraday Terminal")
-    st.markdown("<span style='font-size: 12px; color: #10b981;'>All Sectors Live Matrix | TradingView Direct Integration</span>", unsafe_allow_html=True)
+    st.markdown("### ⚡ Master Institutional Terminal")
+    st.markdown("<span style='font-size: 12px; color: #10b981;'>All NSE Sectors & Sub-Indices Matrix Active</span>", unsafe_allow_html=True)
 with col_h2:
     st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; font-size: 13px;'>🟢 IST: {get_ist_time().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
@@ -166,7 +171,7 @@ st.markdown("---")
 
 all_tickers = [t for sub in SECTOR_MAP.values() for t in sub]
 
-with st.spinner("⚡ Synchronizing all sectors in milliseconds..."):
+with st.spinner("⚡ Scanning entire NSE sector ecosystem..."):
     master_df, speed_ms = execute_master_scan(tuple(all_tickers))
 
 if 'selected_sector_click' not in st.session_state:
@@ -181,7 +186,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 
 # --- TAB 1: ALL SECTORS MATRIX ---
 with tab1:
-    st.caption(f"⚡ Scan Latency: {speed_ms} ms | Click any sector inspect button")
+    st.caption(f"⚡ Scan Latency: {speed_ms} ms | Complete NSE Market Coverage")
     
     sector_summary = []
     for sec, tks in SECTOR_MAP.items():
@@ -221,7 +226,7 @@ with tab1:
                             st.session_state.selected_sector_click = row['Sector']
                             st.rerun()
 
-# --- TAB 2: SECTOR STOCKS WITH TRADINGVIEW LINK ---
+# --- TAB 2: SECTOR STOCKS ---
 with tab2:
     sel_sec = st.selectbox("Select Sector", list(SECTOR_MAP.keys()), index=list(SECTOR_MAP.keys()).index(st.session_state.selected_sector_click))
     st.session_state.selected_sector_click = sel_sec
@@ -250,7 +255,7 @@ with tab2:
                             </div>
                         """, unsafe_allow_html=True)
 
-# --- TAB 3: GAINERS & LOSERS WITH TRADINGVIEW LINK ---
+# --- TAB 3: GAINERS & LOSERS ---
 with tab3:
     col_g, col_l = st.columns(2)
     with col_g:
@@ -283,7 +288,7 @@ with tab3:
                 </div>
             """, unsafe_allow_html=True)
 
-# --- TAB 4: ORB BREAKOUT WITH TRADINGVIEW LINK ---
+# --- TAB 4: ORB BREAKOUT ---
 with tab4:
     st.markdown("### ⚡ 9:15 - 9:30 Opening Range Breakout (ORB)")
     orb_bull = master_df[master_df["Status"].str.contains("BULLISH")]
@@ -316,7 +321,7 @@ with tab4:
                 st.markdown(f"""
                     <div class="matrix-card-red">
                         <h4 style="margin: 0; color: #fff;">{sym} <span style="font-size: 11px; color: #fff;">[BREAKDOWN]</span></h4>
-                        <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                        <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:.2f}%)</h3>
                         <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB Low: ₹{r['ORB Low']} | Vol: {r['Volume']:,}</p>
                         <a href="{tv_url}" target="_blank" class="tv-link">📈 Open TradingView Chart ↗</a>
                     </div>
