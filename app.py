@@ -98,7 +98,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- COMPLETE MASTER NSE SECTOR UNIVERSE (NO SECTOR LEFT) ---
+# --- COMPLETE MASTER NSE SECTOR UNIVERSE ---
 SECTOR_MAP = {
     "IT & Technology": ["TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "LTIM.NS", "MPHASIS.NS", "COFORGE.NS", "PERSISTENT.NS", "OFSS.NS"],
     "Private Bank": ["HDFCBANK.NS", "ICICIBANK.NS", "KOTAKBANK.NS", "AXISBANK.NS", "INDUSINDBK.NS", "FEDERALBNK.NS", "AUBANK.NS"],
@@ -106,7 +106,7 @@ SECTOR_MAP = {
     "Financial Services": ["BAJFINANCE.NS", "BAJAJFINSV.NS", "CHOLAFIN.NS", "MUTHOOTFIN.NS", "SBICARD.NS", "SHRIRAMFIN.NS"],
     "Automobile": ["TATAMOTORS.NS", "M&M.NS", "MARUTI.NS", "BAJAJ-AUTO.NS", "HEROMOTOCO.NS", "EICHERMOT.NS", "TVSMOTOR.NS", "ASHOKLEY.NS"],
     "Pharmaceuticals": ["SUNPHARMA.NS", "DRREDDY.NS", "CIPLA.NS", "APOLLOHOSP.NS", "DIVISLAB.NS", "LUPIN.NS", "ALKEM.NS", "TORNTPHARM.NS"],
-    "Healthcare": ["MAXHEALTH.NS", "LALPATHLAB.NS", "METROPOLIS.NS", "SYNGENE.NS", "Fortis.NS"],
+    "Healthcare": ["MAXHEALTH.NS", "LALPATHLAB.NS", "METROPOLIS.NS", "SYNGENE.NS", "FORTIS.NS"],
     "Energy & Oil/Gas": ["RELIANCE.NS", "ONGC.NS", "BPCL.NS", "IOC.NS", "POWERGRID.NS", "NTPC.NS", "TATAPOWER.NS", "ADANIGREEN.NS", "GAIL.NS"],
     "Metal & Infrastructure": ["TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS", "VEDL.NS", "GRASIM.NS", "ADANIENT.NS", "LT.NS", "JINDALSTEL.NS", "COALINDIA.NS"],
     "FMCG": ["HINDUNILVR.NS", "ITC.NS", "NESTLEIND.NS", "BRITANNIA.NS", "TATACONSUM.NS", "DABUR.NS", "MARICO.NS", "COLPAL.NS"],
@@ -114,7 +114,7 @@ SECTOR_MAP = {
     "Media & Entertainment": ["SUNTV.NS", "PVRINOX.NS", "ZEEL.NS", "NETWORK18.NS"],
     "Realty & Construction": ["DLF.NS", "GODREJPROP.NS", "OBEROIRLTY.NS", "PHOENIXLTD.NS", "PRESTIGE.NS", "LODHA.NS"],
     "Chemicals & Fertilizers": ["UPL.NS", "PIIND.NS", "SRF.NS", "AARTIIND.NS", "COROMANDEL.NS", "NAVINFLUOR.NS"],
-    "Telecom & Services": ["BHARTIARTL.NS", "IDEA.NS", "TATACOMM.NS", "INDUSINW.NS"]
+    "Telecom & Services": ["BHARTIARTL.NS", "IDEA.NS", "TATACOMM.NS"]
 }
 
 def fetch_stock_fast(ticker):
@@ -154,7 +154,7 @@ def fetch_stock_fast(ticker):
 @st.cache_data(ttl=15)
 def execute_master_scan(all_tickers_tuple):
     start_t = time.time()
-    with ThreadPoolExecutor(max_workers=60) as executor: # Increased workers for all sectors
+    with ThreadPoolExecutor(max_workers=60) as executor:
         results = list(executor.map(fetch_stock_fast, all_tickers_tuple))
     valid = [r for r in results if r is not None]
     exec_time = round((time.time() - start_t) * 1000, 2)
@@ -163,7 +163,7 @@ def execute_master_scan(all_tickers_tuple):
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
     st.markdown("### ⚡ Master Institutional Terminal")
-    st.markdown("<span style='font-size: 12px; color: #10b981;'>All NSE Sectors & Sub-Indices Matrix Active</span>", unsafe_allow_html=True)
+    st.markdown("<span style='font-size: 12px; color: #10b981;'>All NSE Sectors & ORB Verified Feed Active</span>", unsafe_allow_html=True)
 with col_h2:
     st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; font-size: 13px;'>🟢 IST: {get_ist_time().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
@@ -171,7 +171,7 @@ st.markdown("---")
 
 all_tickers = [t for sub in SECTOR_MAP.values() for t in sub]
 
-with st.spinner("⚡ Scanning entire NSE sector ecosystem..."):
+with st.spinner("⚡ Scanning entire NSE ecosystem..."):
     master_df, speed_ms = execute_master_scan(tuple(all_tickers))
 
 if 'selected_sector_click' not in st.session_state:
@@ -255,12 +255,13 @@ with tab2:
                             </div>
                         """, unsafe_allow_html=True)
 
-# --- TAB 3: GAINERS & LOSERS ---
+# --- TAB 3: GAINERS & LOSERS + ORB VERIFIED SECTION ---
 with tab3:
+    st.markdown("### 📊 Standard Market Gainers & Losers")
     col_g, col_l = st.columns(2)
     with col_g:
-        st.markdown("### 🟢 Top Gainers")
-        top_g = master_df.sort_values(by="Change (%)", ascending=False).head(6)
+        st.markdown("#### 🟢 Top Gainers")
+        top_g = master_df.sort_values(by="Change (%)", ascending=False).head(5)
         for _, r in top_g.iterrows():
             sym = r['Symbol']
             tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}"
@@ -274,8 +275,8 @@ with tab3:
             """, unsafe_allow_html=True)
             
     with col_l:
-        st.markdown("### 🔴 Top Losers")
-        top_l = master_df.sort_values(by="Change (%)", ascending=True).head(6)
+        st.markdown("#### 🔴 Top Losers")
+        top_l = master_df.sort_values(by="Change (%)", ascending=True).head(5)
         for _, r in top_l.iterrows():
             sym = r['Symbol']
             tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}"
@@ -288,9 +289,50 @@ with tab3:
                 </div>
             """, unsafe_allow_html=True)
 
-# --- TAB 4: ORB BREAKOUT ---
+    st.markdown("---")
+    st.markdown("### ⚡ ORB Breakout Verified Movers (9:15 - 9:30 Range Rule)")
+    
+    orb_bull = master_df[master_df["Status"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False)
+    orb_bear = master_df[master_df["Status"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True)
+    
+    col_og, col_ol = st.columns(2)
+    with col_og:
+        st.markdown("#### 🚀 ORB Bullish Breakout Stocks")
+        if not orb_bull.empty:
+            for _, r in orb_bull.iterrows():
+                sym = r['Symbol']
+                tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}"
+                st.markdown(f"""
+                    <div class="matrix-card-green">
+                        <h4 style="margin: 0; color: #fff;">{sym} <span style="font-size: 11px; color: #fff;">[ORB HIGH BROKEN]</span></h4>
+                        <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                        <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB High: ₹{r['ORB High']} | Vol: {r['Volume']:,}</p>
+                        <a href="{tv_url}" target="_blank" class="tv-link">📈 Open TradingView Chart ↗</a>
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No stocks currently breaking ORB High.")
+            
+    with col_ol:
+        st.markdown("#### 🔻 ORB Bearish Breakdown Stocks")
+        if not orb_bear.empty:
+            for _, r in orb_bear.iterrows():
+                sym = r['Symbol']
+                tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}"
+                st.markdown(f"""
+                    <div class="matrix-card-red">
+                        <h4 style="margin: 0; color: #fff;">{sym} <span style="font-size: 11px; color: #fff;">[ORB LOW BROKEN]</span></h4>
+                        <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                        <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB Low: ₹{r['ORB Low']} | Vol: {r['Volume']:,}</p>
+                        <a href="{tv_url}" target="_blank" class="tv-link">📈 Open TradingView Chart ↗</a>
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No stocks currently breaking ORB Low.")
+
+# --- TAB 4: ORB BREAKOUT EXCLUSIVE ---
 with tab4:
-    st.markdown("### ⚡ 9:15 - 9:30 Opening Range Breakout (ORB)")
+    st.markdown("### ⚡ Dedicated 9:15 - 9:30 Opening Range Breakout Matrix")
     orb_bull = master_df[master_df["Status"].str.contains("BULLISH")]
     orb_bear = master_df[master_df["Status"].str.contains("BEARISH")]
     
@@ -321,7 +363,7 @@ with tab4:
                 st.markdown(f"""
                     <div class="matrix-card-red">
                         <h4 style="margin: 0; color: #fff;">{sym} <span style="font-size: 11px; color: #fff;">[BREAKDOWN]</span></h4>
-                        <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:.2f}%)</h3>
+                        <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
                         <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB Low: ₹{r['ORB Low']} | Vol: {r['Volume']:,}</p>
                         <a href="{tv_url}" target="_blank" class="tv-link">📈 Open TradingView Chart ↗</a>
                     </div>
