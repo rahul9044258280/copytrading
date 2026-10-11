@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- HIGH-PERFORMANCE CINEMATIC CSS ---
+# --- HIGH-PERFORMANCE CINEMATIC & 3D CSS ---
 st.markdown("""
     <style>
     .stApp {
@@ -30,6 +30,47 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+
+    /* 3D Box Container for Nifty 50 Summary */
+    .nifty-3d-box {
+        background: linear-gradient(145deg, #111827, #1f2937);
+        border: 1px solid #374151;
+        border-radius: 12px;
+        padding: 12px 20px;
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        margin-top: 5px;
+        margin-bottom: 15px;
+    }
+
+    .stat-card-green {
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid #10b981;
+        padding: 8px 16px;
+        border-radius: 8px;
+        text-align: center;
+        box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);
+    }
+
+    .stat-card-red {
+        background: rgba(239, 68, 68, 0.15);
+        border: 1px solid #ef4444;
+        padding: 8px 16px;
+        border-radius: 8px;
+        text-align: center;
+        box-shadow: 0 4px 10px rgba(239, 68, 68, 0.2);
+    }
+
+    .stat-card-gray {
+        background: rgba(156, 163, 175, 0.15);
+        border: 1px solid #9ca3af;
+        padding: 8px 16px;
+        border-radius: 8px;
+        text-align: center;
+        box-shadow: 0 4px 10px rgba(156, 163, 175, 0.1);
+    }
 
     .matrix-card-green {
         background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
@@ -99,7 +140,18 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- UNIVERSE WITH FULL MAPPED SYMBOLS ---
+# --- NIFTY 50 STOCKS LIST FOR EXACT BREADTH ---
+NIFTY_50_TICKERS = [
+    "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "INFY.NS", "BHARTIARTL.NS", "ITC.NS",
+    "SBIN.NS", "LTIM.NS", "LT.NS", "BAJFINANCE.NS", "HCLTECH.NS", "KOTAKBANK.NS", "AXISBANK.NS",
+    "SUNPHARMA.NS", "M&M.NS", "MARUTI.NS", "TATAMOTORS.NS", "NTPC.NS", "ULTRACEMCO.NS", "POWERGRID.NS",
+    "TITAN.NS", "ADANIENT.NS", "TATASTEEL.NS", "COALINDIA.NS", "ASIANPAINT.NS", "BAJAJFINSV.NS",
+    "JSWSTEEL.NS", "HINDUNILVR.NS", "GRASIM.NS", "TECHM.NS", "ADANIPORTS.NS", "HINDALCO.NS",
+    "CIPLA.NS", "HEROMOTOCO.NS", "EICHERMOT.NS", "DRREDDY.NS", "BPCL.NS", "WIPRO.NS", "TATACONSUM.NS",
+    "APOLLOHOSP.NS", "SBILIFE.NS", "DIVISLAB.NS", "BAJAJ-AUTO.NS", "INDUSINDBK.NS", "BRITANNIA.NS",
+    "ONGC.NS", "NESTLEIND.NS", "SHRIRAMFIN.NS", "BEL.NS"
+]
+
 SECTOR_MAP = {
     "IT & Technology": [
         "TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "LTIM.NS", 
@@ -173,9 +225,6 @@ def fetch_stock_fast(ticker):
 
         if df is not None and len(df) >= 2 and df_daily is not None and len(df_daily) >= 2:
             curr_price = df['Close'].iloc[-1]
-            
-            # --- FIXED 1D GAIN % LOGIC (PREVIOUS DAY CLOSE BASE) ---
-            # Using actual Previous Day Closing Price from Daily Data
             prev_day_close = df_daily['Close'].iloc[-2]
             change_pct = ((curr_price - prev_day_close) / prev_day_close) * 100
             
@@ -245,16 +294,45 @@ def execute_master_scan(all_tickers_tuple):
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
     st.markdown("### ⚡ Master Institutional Pro Terminal")
-    st.markdown("<span style='font-size: 12px; color: #10b981;'>Exact Daily 1D Gain % Corrected | 30s Auto Refresh</span>", unsafe_allow_html=True)
+    st.markdown("<span style='font-size: 12px; color: #10b981;'>Realtime Nifty 50 Advance/Decline Live Bar Active</span>", unsafe_allow_html=True)
 with col_h2:
     st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; font-size: 13px;'>🟢 IST: {get_ist_time().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
-st.markdown("---")
+all_tickers = list(set([t for sub in SECTOR_MAP.values() for t in sub] + NIFTY_50_TICKERS))
 
-all_tickers = list(set([t for sub in SECTOR_MAP.values() for t in sub]))
-
-with st.spinner("⚡ Scanning & calculating precise 1D gain percentages..."):
+with st.spinner("⚡ Scanning Nifty 50 and sector stocks..."):
     master_df, speed_ms = execute_master_scan(tuple(all_tickers))
+
+if not master_df.empty and "Symbol" in master_df.columns:
+    clean_n50_symbols = [t.replace(".NS", "") for t in NIFTY_50_TICKERS]
+    n50_df = master_df[master_df["Symbol"].isin(clean_n50_symbols)]
+    
+    n50_green = len(n50_df[n50_df["Change (%)"] > 0])
+    n50_red = len(n50_df[n50_df["Change (%)"] < 0])
+    n50_gray = len(n50_df[n50_df["Change (%)"] == 0])
+    
+    # --- BLUE CIRCLE LOCATION: 3D BOLD LIVE NIFTY 50 ADVANCE/DECLINE DASHBOARD ---
+    st.markdown(f"""
+        <div class="nifty-3d-box">
+            <div style="font-weight: 800; font-size: 16px; color: #f3f4f6; letter-spacing: 0.5px;">
+                📊 NIFTY 50 LIVE BREADTH:
+            </div>
+            <div class="stat-card-green">
+                <span style="font-size: 12px; color: #a7f3d0; font-weight: 600;">GREEN (ADVANCES)</span><br>
+                <span style="font-size: 22px; font-weight: 900; color: #10b981;">🟢 {n50_green}</span>
+            </div>
+            <div class="stat-card-red">
+                <span style="font-size: 12px; color: #fecaca; font-weight: 600;">RED (DECLINES)</span><br>
+                <span style="font-size: 22px; font-weight: 900; color: #ef4444;">🔴 {n50_red}</span>
+            </div>
+            <div class="stat-card-gray">
+                <span style="font-size: 12px; color: #e5e7eb; font-weight: 600;">UNCHANGED</span><br>
+                <span style="font-size: 22px; font-weight: 900; color: #9ca3af;">⚪ {n50_gray}</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("---")
 
 if 'selected_sector_click' not in st.session_state:
     st.session_state.selected_sector_click = list(SECTOR_MAP.keys())[0]
@@ -262,7 +340,6 @@ if 'selected_sector_click' not in st.session_state:
 if master_df.empty or "Symbol" not in master_df.columns:
     st.error("Market data fetch karne me samasya aa rahi hai. Kripya refresh karein.")
 else:
-    # Always sort globally by exact % Change in descending order
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
 
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
