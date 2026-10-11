@@ -362,9 +362,16 @@ def execute_master_scan(all_tickers_tuple):
 
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
-    # --- LOGO INTEGRATION (GITHUB logo.png) ---
-    st.image("logo.png", width=350)
-    st.markdown("<span style='font-size: 13px; color: #10b981; font-weight: 700;'>Live PCR + Nifty 50 Breadth + F&O Active Terminal</span>", unsafe_allow_html=True)
+    # --- SCAN PRO LOGO INTEGRATION (NO ERROR) ---
+    st.markdown("""
+        <div style="margin-bottom: 5px;">
+            <h1 style="font-size: 40px; font-weight: 900; background: linear-gradient(90deg, #00d2ff, #3a7bd5, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; padding: 0; letter-spacing: 1px;">
+                ⚡ SCAN PRO
+            </h1>
+            <p style="font-size: 14px; color: #38bdf8; font-weight: 800; margin: 0; letter-spacing: 2px;">STOCK MARKET SOLUTIONS</p>
+        </div>
+        <span style='font-size: 13px; color: #10b981; font-weight: 700;'>Live PCR + Nifty 50 Breadth + F&O Active Terminal</span>
+    """, unsafe_allow_html=True)
 
 with col_h2:
     st.markdown(f"""
