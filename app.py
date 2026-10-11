@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- HIGH-PERFORMANCE CINEMATIC, 3D TABS & BOX CSS ---
+# --- HIGH-PERFORMANCE CINEMATIC, 3D TABS & CORNER TIME CSS ---
 st.markdown("""
     <style>
     .stApp {
@@ -31,6 +31,27 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
+    /* 3D BOLD CORNER TIME BOX STYLING */
+    .time-3d-box {
+        background: linear-gradient(145deg, #0d1e18, #052e21);
+        border: 2px solid #10b981;
+        border-radius: 12px;
+        padding: 10px 18px;
+        box-shadow: 0 8px 18px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        display: inline-block;
+        float: right;
+        text-align: right;
+    }
+    
+    .time-3d-text {
+        font-size: 22px !important;
+        font-weight: 900 !important;
+        color: #10b981 !important;
+        letter-spacing: 1px !important;
+        font-family: 'monospace', 'Inter', sans-serif;
+        text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+    }
+
     /* 3D Box Container for Nifty 50 Summary */
     .nifty-3d-box {
         background: linear-gradient(145deg, #111827, #1f2937);
@@ -41,7 +62,7 @@ st.markdown("""
         display: flex;
         justify-content: space-around;
         align-items: center;
-        margin-top: 5px;
+        margin-top: 10px;
         margin-bottom: 20px;
     }
 
@@ -72,7 +93,7 @@ st.markdown("""
         box-shadow: 0 4px 10px rgba(156, 163, 175, 0.1);
     }
 
-    /* --- BOLD, BADD & 3D BOX STYLING FOR ALL TABS --- */
+    /* BOLD & 3D BOX STYLING FOR TABS */
     .stTabs [data-baseweb="tab-list"] {
         gap: 12px !important;
         background-color: transparent !important;
@@ -96,7 +117,6 @@ st.markdown("""
         letter-spacing: 0.3px !important;
     }
 
-    /* Active Selected Tab - 3D Glow & Highlight */
     .stTabs [aria-selected="true"] {
         background: linear-gradient(145deg, #1e293b, #0f172a) !important;
         border: 2px solid #10b981 !important;
@@ -134,20 +154,6 @@ st.markdown("""
     .matrix-card-red:hover {
         transform: translateY(-2px);
     }
-    
-    .stButton>button {
-        width: 100%;
-        background: rgba(255, 255, 255, 0.1);
-        color: white;
-        font-weight: 700;
-        border-radius: 6px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        padding: 6px;
-        font-size: 12px;
-    }
-    .stButton>button:hover {
-        background: rgba(255, 255, 255, 0.2);
-    }
 
     .tv-link {
         display: inline-block;
@@ -164,7 +170,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- NIFTY 50 STOCKS LIST FOR EXACT BREADTH ---
+# --- NIFTY 50 STOCKS LIST FOR BREADTH ---
 NIFTY_50_TICKERS = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "INFY.NS", "BHARTIARTL.NS", "ITC.NS",
     "SBIN.NS", "LTIM.NS", "LT.NS", "BAJFINANCE.NS", "HCLTECH.NS", "KOTAKBANK.NS", "AXISBANK.NS",
@@ -315,12 +321,18 @@ def execute_master_scan(all_tickers_tuple):
     exec_time = round((time.time() - start_t) * 1000, 2)
     return pd.DataFrame(valid), exec_time
 
-col_h1, col_h2 = st.columns([3, 1])
+col_h1, col_h2 = st.columns([2, 2])
 with col_h1:
     st.markdown("### ⚡ Master Institutional Pro Terminal")
-    st.markdown("<span style='font-size: 12px; color: #10b981;'>3D Bold Box Tabs & Nifty 50 Breadth Active</span>", unsafe_allow_html=True)
+    st.markdown("<span style='font-size: 12px; color: #10b981;'>3D Big Time Indicator & Market Universe Active</span>", unsafe_allow_html=True)
 with col_h2:
-    st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; font-size: 13px;'>🟢 IST: {get_ist_time().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
+    # BOLD 3D TIME BOX IN TOP RIGHT CORNER
+    st.markdown(f"""
+        <div class="time-3d-box">
+            <span style="font-size: 11px; color: #a7f3d0; font-weight: 700; display: block; margin-bottom: 2px;">🟢 IST LIVE TIME</span>
+            <span class="time-3d-text">{get_ist_time().strftime('%H:%M:%S')}</span>
+        </div>
+    """, unsafe_allow_html=True)
 
 all_tickers = list(set([t for sub in SECTOR_MAP.values() for t in sub] + NIFTY_50_TICKERS))
 
@@ -335,7 +347,7 @@ if not master_df.empty and "Symbol" in master_df.columns:
     n50_red = len(n50_df[n50_df["Change (%)"] < 0])
     n50_gray = len(n50_df[n50_df["Change (%)"] == 0])
     
-    # --- 3D BOLD LIVE NIFTY 50 ADVANCE/DECLINE DASHBOARD ---
+    # 3D BOLD LIVE NIFTY 50 ADVANCE/DECLINE DASHBOARD
     st.markdown(f"""
         <div class="nifty-3d-box">
             <div style="font-weight: 800; font-size: 16px; color: #f3f4f6; letter-spacing: 0.5px;">
