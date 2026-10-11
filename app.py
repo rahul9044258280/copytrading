@@ -99,81 +99,69 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- MASSIVE COMPREHENSIVE NIFTY 500 & CHARTINK UNIVERSE ---
+# --- UNIVERSE WITH FULL MAPPED SYMBOLS ---
 SECTOR_MAP = {
     "IT & Technology": [
         "TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "LTIM.NS", 
         "MPHASIS.NS", "COFORGE.NS", "PERSISTENT.NS", "OFSS.NS", "KPITTECH.NS", 
         "TATAELXSI.NS", "CYIENT.NS", "LTTS.NS", "BSOFT.NS", "ZENSARTECH.NS", 
-        "INTELLECT.NS", "BBOX.NS", "NAUKRI.NS", "PERSISTENT.NS", "HEXAWARE.NS"
+        "INTELLECT.NS", "BBOX.NS", "NAUKRI.NS"
     ],
     "Private Bank": [
         "HDFCBANK.NS", "ICICIBANK.NS", "KOTAKBANK.NS", "AXISBANK.NS", "INDUSINDBK.NS", 
         "FEDERALBNK.NS", "AUBANK.NS", "BANDHANBNK.NS", "IDFCFIRSTB.NS", "RBLBANK.NS", 
-        "CITYUNIONB.NS", "CUB.NS", "KARURVYSYA.NS", "IDBI.NS", "SOUTHBANK.NS"
+        "CITYUNIONB.NS", "CUB.NS", "KARURVYSYA.NS", "IDBI.NS"
     ],
     "PSU Bank": [
         "SBIN.NS", "PNB.NS", "BANKBARODA.NS", "CANBK.NS", "UNIONBANK.NS", 
-        "IOB.NS", "INDIANB.NS", "UCOBANK.NS", "CENTRALBK.NS", "BANKINDIA.NS", 
-        "MAHABANK.NS", "PSB.NS", "J&KBANK.NS"
+        "IOB.NS", "INDIANB.NS", "UCOBANK.NS", "CENTRALBK.NS", "BANKINDIA.NS"
     ],
     "Financial Services & NBFC": [
         "BAJFINANCE.NS", "BAJAJFINSV.NS", "CHOLAFIN.NS", "MUTHOOTFIN.NS", "SBICARD.NS", 
         "SHRIRAMFIN.NS", "REC.NS", "PFC.NS", "MANAPPURAM.NS", "M&MFIN.NS", 
-        "LICHSGFIN.NS", "HUDCO.NS", "IREDA.NS", "CHOLAHLDNG.NS", "SBFC.NS", 
-        "MOTHERSON.NS", "SUNDARMFIN.NS", "POONAWALLA.NS", "CAMLINFINE.NS"
+        "LICHSGFIN.NS", "HUDCO.NS", "IREDA.NS", "CHOLAHLDNG.NS"
     ],
     "Automobile & Auto Ancillary": [
         "TATAMOTORS.NS", "M&M.NS", "MARUTI.NS", "BAJAJ-AUTO.NS", "HEROMOTOCO.NS", 
         "EICHERMOT.NS", "TVSMOTOR.NS", "ASHOKLEY.NS", "BHARATFORG.NS", "MOTHERSON.NS", 
-        "BOSCHLTD.NS", "MRF.NS", "BALKRISIND.NS", "TIINDIA.NS", "ENDURANCE.NS", 
-        "SONACOMS.NS", "EXIDEIND.NS", "AMARAJABAT.NS", "tubeinvest.ns"
+        "BOSCHLTD.NS", "MRF.NS", "BALKRISIND.NS", "TIINDIA.NS"
     ],
     "Pharmaceuticals & Biotech": [
         "SUNPHARMA.NS", "DRREDDY.NS", "CIPLA.NS", "APOLLOHOSP.NS", "DIVISLAB.NS", 
         "LUPIN.NS", "ALKEM.NS", "TORNTPHARM.NS", "MANKIND.NS", "ZYDUSLIFE.NS", 
-        "GLENMARK.NS", "GRANULES.NS", "AUROPHARMA.NS", "IPCALAB.NS", "BIOCON.NS", 
-        "PFIZER.NS", "AJANTPHARM.NS", "LAURUSLABS.NS", "NATCOPHARM.NS", "GLAND.NS"
+        "GLENMARK.NS", "GRANULES.NS", "AUROPHARMA.NS", "IPCALAB.NS", "BIOCON.NS"
     ],
     "Energy, Oil & Power": [
         "RELIANCE.NS", "ONGC.NS", "BPCL.NS", "IOC.NS", "POWERGRID.NS", 
         "NTPC.NS", "TATAPOWER.NS", "ADANIGREEN.NS", "GAIL.NS", "COALINDIA.NS", 
-        "NHPC.NS", "SJVN.NS", "PETRONET.NS", "OIL.NS", "SUZLON.NS", "INOXWIND.NS", 
-        "ADANIPORTS.NS", "TORNTPOWER.NS", "JSWENERGY.NS", "ADANIPOWER.NS", "CESC.NS"
+        "NHPC.NS", "SJVN.NS", "PETRONET.NS", "OIL.NS", "SUZLON.NS", "INOXWIND.NS", "ADANIPORTS.NS"
     ],
     "Metal, Mining & Infra": [
         "TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS", "VEDL.NS", "GRASIM.NS", 
         "ADANIENT.NS", "LT.NS", "JINDALSTEL.NS", "NATIONALUM.NS", "NMDC.NS", 
-        "SAIL.NS", "APLAPOLLO.NS", "HINDZINC.NS", "IRB.NS", "KEC.NS", "NCC.NS", 
-        "GMRAIRPORT.NS", "JSL.NS", "RATNAMANI.NS", "WELCORP.NS", "HINDPETRO.NS"
+        "SAIL.NS", "APLAPOLLO.NS", "HINDZINC.NS", "IRB.NS", "KEC.NS", "NCC.NS", "GMRAIRPORT.NS"
     ],
     "FMCG & Consumer Staples": [
         "HINDUNILVR.NS", "ITC.NS", "NESTLEIND.NS", "BRITANNIA.NS", "TATACONSUM.NS", 
         "DABUR.NS", "MARICO.NS", "COLPAL.NS", "GODREJCP.NS", "VBL.NS", 
-        "AWL.NS", "PATANJALI.NS", "EMAMILTD.NS", "RADICO.NS", "UNITDSPR.NS", "UBL.NS"
+        "AWL.NS", "PATANJALI.NS"
     ],
     "Consumer Durables & Retail": [
         "TITAN.NS", "ASIANPAINT.NS", "HAVELLS.NS", "VOLTAS.NS", "WHIRLPOOL.NS", 
         "DIXON.NS", "CROMPTON.NS", "POLYCAB.NS", "KEI.NS", "BERGEPAINT.NS", 
-        "TRENT.NS", "DMART.NS", "BLUEDART.NS", "MANYAVAR.NS", "AMBER.NS"
+        "TRENT.NS", "DMART.NS", "BLUEDART.NS"
     ],
     "Realty & Infrastructure": [
         "DLF.NS", "GODREJPROP.NS", "OBEROIRLTY.NS", "PHOENIXLTD.NS", "PRESTIGE.NS", 
-        "LODHA.NS", "NBCC.NS", "GRINFRA.NS", "BRIGADE.NS", "SOBHA.NS", "SUNTECK.NS"
+        "LODHA.NS", "NBCC.NS", "GRINFRA.NS"
     ],
     "Chemicals & Fertilizers": [
         "UPL.NS", "PIIND.NS", "SRF.NS", "AARTIIND.NS", "COROMANDEL.NS", 
-        "NAVINFLUOR.NS", "DEEPAKNTR.NS", "FACT.NS", "GNFC.NS", "ATUL.NS", 
-        "CHAMBLFERT.NS", "ALKYLAMINE.NS", "CLEAN.NS", "AETHER.NS"
+        "NAVINFLUOR.NS", "DEEPAKNTR.NS", "FACT.NS", "GNFC.NS"
     ],
     "Defence & Capital Goods": [
         "HAL.NS", "BEL.NS", "BDL.NS", "COCHINSHIP.NS", "MAZDOCK.NS", 
-        "SIEMENS.NS", "ABB.NS", "CGPOWER.NS", "BHEL.NS", "THERMAX.NS", 
-        "CUMMINSIND.NS", "AIAENG.NS", "ESCORTS.NS", "CARBORUNIV.NS", "SOLARINDS.NS"
-    ],
-    "Telecom & Media": [
-        "BHARTIARTL.NS", "IDEA.NS", "TATACOMM.NS", "HFCL.NS", "TEJASNET.NS", 
-        "ZEEL.NS", "SUNTV.NS", "PVRINOX.NS", "NAZARA.NS"
+        "SIEMENS.NS", "ABB.NS", "CGPOWER.NS", "BHEL.NS", "THERMAX.NS"
     ]
 }
 
@@ -183,13 +171,16 @@ def fetch_stock_fast(ticker):
         df = tk.history(period="2d", interval="5m")
         df_daily = tk.history(period="2mo", interval="1d")
 
-        if df is not None and len(df) >= 2 and df_daily is not None and len(df_daily) >= 20:
+        if df is not None and len(df) >= 2 and df_daily is not None and len(df_daily) >= 2:
             curr_price = df['Close'].iloc[-1]
-            prev_close = df['Close'].iloc[-2]
-            change_pct = ((curr_price - prev_close) / prev_close) * 100
+            
+            # --- FIXED 1D GAIN % LOGIC (PREVIOUS DAY CLOSE BASE) ---
+            # Using actual Previous Day Closing Price from Daily Data
+            prev_day_close = df_daily['Close'].iloc[-2]
+            change_pct = ((curr_price - prev_day_close) / prev_day_close) * 100
             
             today_daily_volume = int(df_daily['Volume'].iloc[-1])
-            sma_vol_20 = df_daily['Volume'].iloc[-21:-1].mean()
+            sma_vol_20 = df_daily['Volume'].iloc[-21:-1].mean() if len(df_daily) >= 21 else today_daily_volume
             vol_surge = True if today_daily_volume > (sma_vol_20 * 3) else False
 
             typical_price = (df['High'] + df['Low'] + df['Close']) / 3
@@ -236,7 +227,7 @@ def fetch_stock_fast(ticker):
                 "Status": status,
                 "ProStatus": pro_status,
                 "Surge930Status": surge_930_status,
-                "Prev Close": round(prev_close, 2)
+                "Prev Close": round(prev_day_close, 2)
             }
     except Exception:
         return None
@@ -254,7 +245,7 @@ def execute_master_scan(all_tickers_tuple):
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
     st.markdown("### ⚡ Master Institutional Pro Terminal")
-    st.markdown("<span style='font-size: 12px; color: #10b981;'>Comprehensive Universe Active | 30s Refresh</span>", unsafe_allow_html=True)
+    st.markdown("<span style='font-size: 12px; color: #10b981;'>Exact Daily 1D Gain % Corrected | 30s Auto Refresh</span>", unsafe_allow_html=True)
 with col_h2:
     st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; font-size: 13px;'>🟢 IST: {get_ist_time().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
@@ -262,15 +253,16 @@ st.markdown("---")
 
 all_tickers = list(set([t for sub in SECTOR_MAP.values() for t in sub]))
 
-with st.spinner("⚡ Scanning complete market universe..."):
+with st.spinner("⚡ Scanning & calculating precise 1D gain percentages..."):
     master_df, speed_ms = execute_master_scan(tuple(all_tickers))
 
 if 'selected_sector_click' not in st.session_state:
     st.session_state.selected_sector_click = list(SECTOR_MAP.keys())[0]
 
 if master_df.empty or "Symbol" not in master_df.columns:
-    st.error("Market data fetch karne me samasya aa rahi hai. Kripya thodi der baad refresh karein.")
+    st.error("Market data fetch karne me samasya aa rahi hai. Kripya refresh karein.")
 else:
+    # Always sort globally by exact % Change in descending order
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
 
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
@@ -285,7 +277,7 @@ else:
 
     # --- TAB 1: ALL SECTORS MATRIX ---
     with tab1:
-        st.caption(f"⚡ Feed Latency: {speed_ms} ms | Total Monitored Stocks: {len(master_df)} | Auto-Refresh: 30s")
+        st.caption(f"⚡ Feed Latency: {speed_ms} ms | Monitored Stocks: {len(master_df)} | Auto-Refresh: 30s")
         
         sector_summary = []
         for sec, tks in SECTOR_MAP.items():
@@ -358,7 +350,7 @@ else:
 
     # --- TAB 3: GAINERS & LOSERS ---
     with tab3:
-        st.markdown("### 📊 Complete Market Gainers & Losers")
+        st.markdown("### 📊 Complete Market Gainers & Losers (Exact Daily Gain %)")
         col_g, col_l = st.columns(2)
         
         with col_g:
@@ -498,7 +490,7 @@ else:
                             st.markdown(f"""
                                 <div class="matrix-card-red">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #b91c1c; padding: 2px 4px; border-radius: 4px;">PRO</span></h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:.2f}%)</h3>
                                     <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: ₹{r['VWAP']} | RVol: <b>{r['RVol']}x</b></p>
                                     <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
@@ -577,7 +569,7 @@ else:
                             st.markdown(f"""
                                 <div class="matrix-card-red">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #dc2626; padding: 2px 4px; border-radius: 4px;">SURGE</span></h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:.2f}%)</h3>
                                     <p style="font-size: 11px; color: #e2e8f0; margin: 0;">RVol: <b>{r['RVol']}x</b> | VWAP: ₹{r['VWAP']}</p>
                                     <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
