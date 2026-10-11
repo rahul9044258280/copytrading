@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- HIGH-PERFORMANCE CINEMATIC & 3D CSS ---
+# --- HIGH-PERFORMANCE CINEMATIC, 3D TABS & BOX CSS ---
 st.markdown("""
     <style>
     .stApp {
@@ -42,7 +42,7 @@ st.markdown("""
         justify-content: space-around;
         align-items: center;
         margin-top: 5px;
-        margin-bottom: 15px;
+        margin-bottom: 20px;
     }
 
     .stat-card-green {
@@ -70,6 +70,43 @@ st.markdown("""
         border-radius: 8px;
         text-align: center;
         box-shadow: 0 4px 10px rgba(156, 163, 175, 0.1);
+    }
+
+    /* --- BOLD, BADD & 3D BOX STYLING FOR ALL TABS --- */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 12px !important;
+        background-color: transparent !important;
+        padding: 6px 0px !important;
+        border-bottom: none !important;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        background: linear-gradient(145deg, #131b2e, #0b101d) !important;
+        border: 1px solid #2d3748 !important;
+        border-radius: 10px !important;
+        padding: 12px 20px !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+
+    .stTabs [data-baseweb="tab"] p {
+        font-size: 15px !important;
+        font-weight: 800 !important;
+        color: #cbd5e1 !important;
+        letter-spacing: 0.3px !important;
+    }
+
+    /* Active Selected Tab - 3D Glow & Highlight */
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(145deg, #1e293b, #0f172a) !important;
+        border: 2px solid #10b981 !important;
+        box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+        transform: translateY(-2px) !important;
+    }
+
+    .stTabs [aria-selected="true"] p {
+        color: #10b981 !important;
+        font-size: 16px !important;
     }
 
     .matrix-card-green {
@@ -123,19 +160,6 @@ st.markdown("""
     .tv-link:hover {
         text-decoration: underline;
         color: #ffffff;
-    }
-
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 6px;
-        background-color: #0d1322;
-        padding: 4px;
-        border-radius: 8px;
-        border: 1px solid #1f293d;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #161f33 !important;
-        color: #10b981 !important;
-        border: 1px solid #374151;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -294,13 +318,13 @@ def execute_master_scan(all_tickers_tuple):
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
     st.markdown("### ⚡ Master Institutional Pro Terminal")
-    st.markdown("<span style='font-size: 12px; color: #10b981;'>Realtime Nifty 50 Advance/Decline Live Bar Active</span>", unsafe_allow_html=True)
+    st.markdown("<span style='font-size: 12px; color: #10b981;'>3D Bold Box Tabs & Nifty 50 Breadth Active</span>", unsafe_allow_html=True)
 with col_h2:
     st.markdown(f"<div style='text-align: right; color: #10b981; font-weight: 600; font-size: 13px;'>🟢 IST: {get_ist_time().strftime('%H:%M:%S')}</div>", unsafe_allow_html=True)
 
 all_tickers = list(set([t for sub in SECTOR_MAP.values() for t in sub] + NIFTY_50_TICKERS))
 
-with st.spinner("⚡ Scanning Nifty 50 and sector stocks..."):
+with st.spinner("⚡ Scanning market data..."):
     master_df, speed_ms = execute_master_scan(tuple(all_tickers))
 
 if not master_df.empty and "Symbol" in master_df.columns:
@@ -311,7 +335,7 @@ if not master_df.empty and "Symbol" in master_df.columns:
     n50_red = len(n50_df[n50_df["Change (%)"] < 0])
     n50_gray = len(n50_df[n50_df["Change (%)"] == 0])
     
-    # --- BLUE CIRCLE LOCATION: 3D BOLD LIVE NIFTY 50 ADVANCE/DECLINE DASHBOARD ---
+    # --- 3D BOLD LIVE NIFTY 50 ADVANCE/DECLINE DASHBOARD ---
     st.markdown(f"""
         <div class="nifty-3d-box">
             <div style="font-weight: 800; font-size: 16px; color: #f3f4f6; letter-spacing: 0.5px;">
@@ -342,6 +366,7 @@ if master_df.empty or "Symbol" not in master_df.columns:
 else:
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
 
+    # 3D BOLD TABS
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "📌 1. All Sectors", 
         "📂 2. Sector Stocks", 
