@@ -351,7 +351,7 @@ def fetch_stock_fast(ticker):
         return None
     return None
 
-@st.cache_data(ttl=25)
+@st.cache_data(ttl=15)
 def execute_master_scan(all_tickers_tuple):
     start_t = time.time()
     with ThreadPoolExecutor(max_workers=100) as executor:
@@ -690,8 +690,14 @@ else:
     # --- TAB 7: CHARTINK VOLUME SURGE SCANNER & 1ST 5-MIN BREAKOUTS ---
     with tab7:
         st.markdown("### ⚡ 1st Opening 5-Min Candle Breakout / Breakdown")
-        f5_bull = master_df[master_df["First5mStatus"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
-        f5_bear = master_df[master_df["First5mStatus"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
+        
+        # Safe column check to prevent KeyError
+        if "First5mStatus" in master_df.columns:
+            f5_bull = master_df[master_df["First5mStatus"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
+            f5_bear = master_df[master_df["First5mStatus"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
+        else:
+            f5_bull = pd.DataFrame()
+            f5_bear = pd.DataFrame()
         
         st.markdown(f"#### 🚀 1st 5-Min Bullish Breakouts ({len(f5_bull)} stocks)")
         if not f5_bull.empty:
@@ -737,7 +743,12 @@ else:
 
         st.markdown("---")
         st.markdown("### 📊 Chartink Volume Surge Scanner: Daily Vol > (20 SMA Vol * 3)")
-        surge_stocks = master_df[master_df["VolSurge"] == True].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
+        
+        if "VolSurge" in master_df.columns:
+            surge_stocks = master_df[master_df["VolSurge"] == True].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
+        else:
+            surge_stocks = pd.DataFrame()
+            
         st.write(f"Total Volume Surge Stocks Found: **{len(surge_stocks)}**")
 
         if not surge_stocks.empty:
