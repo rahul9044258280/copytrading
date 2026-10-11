@@ -293,6 +293,22 @@ def fetch_stock_fast(ticker):
             orb_high = morning['High'].max() if not morning.empty else curr_price
             orb_low = morning['Low'].min() if not morning.empty else curr_price
             
+            # --- 1ST OPENING 5 MIN CANDLE BREAKOUT LOGIC ---
+            today_df = df[df.index.date == df.index[-1].date()] if not df.empty else pd.DataFrame()
+            if not today_df.empty:
+                first_candle = today_df.iloc[0]
+                first_5m_high = first_candle['High']
+                first_5m_low = first_candle['Low']
+            else:
+                first_5m_high = curr_price
+                first_5m_low = curr_price
+
+            first_5m_status = "NORMAL"
+            if curr_price > first_5m_high:
+                first_5m_status = "1ST 5M BULLISH BREAKOUT 🚀"
+            elif curr_price < first_5m_low:
+                first_5m_status = "1ST 5M BEARISH BREAKDOWN 🔻"
+
             status = "NORMAL"
             pro_status = "NORMAL"
             surge_930_status = "NORMAL"
@@ -323,6 +339,9 @@ def fetch_stock_fast(ticker):
                 "VWAP": round(vwap, 2),
                 "ORB High": round(orb_high, 2),
                 "ORB Low": round(orb_low, 2),
+                "First5mHigh": round(first_5m_high, 2),
+                "First5mLow": round(first_5m_low, 2),
+                "First5mStatus": first_5m_status,
                 "Status": status,
                 "ProStatus": pro_status,
                 "Surge930Status": surge_930_status,
@@ -668,8 +687,55 @@ else:
         else:
             st.info("Abhi koi Pro Bearish setup active nahi hai.")
 
-    # --- TAB 7: CHARTINK VOLUME SURGE SCANNER ---
+    # --- TAB 7: CHARTINK VOLUME SURGE SCANNER & 1ST 5-MIN BREAKOUTS ---
     with tab7:
+        st.markdown("### ⚡ 1st Opening 5-Min Candle Breakout / Breakdown")
+        f5_bull = master_df[master_df["First5mStatus"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
+        f5_bear = master_df[master_df["First5mStatus"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
+        
+        st.markdown(f"#### 🚀 1st 5-Min Bullish Breakouts ({len(f5_bull)} stocks)")
+        if not f5_bull.empty:
+            for i in range(0, len(f5_bull), 4):
+                cols = st.columns(4)
+                for j in range(4):
+                    if i + j < len(f5_bull):
+                        r = f5_bull.iloc[i + j]
+                        sym = r['Symbol']
+                        tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
+                        with cols[j]:
+                            st.markdown(f"""
+                                <div class="matrix-card-green">
+                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #059669; padding: 2px 4px; border-radius: 4px;">1ST 5M</span></h5>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">1st 5m High: ₹{r['First5mHigh']}</p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                </div>
+                            """, unsafe_allow_html=True)
+        else:
+            st.info("No active 1st 5-min bullish breakouts right now.")
+
+        st.markdown(f"#### 🔻 1st 5-Min Bearish Breakdowns ({len(f5_bear)} stocks)")
+        if not f5_bear.empty:
+            for i in range(0, len(f5_bear), 4):
+                cols = st.columns(4)
+                for j in range(4):
+                    if i + j < len(f5_bear):
+                        r = f5_bear.iloc[i + j]
+                        sym = r['Symbol']
+                        tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
+                        with cols[j]:
+                            st.markdown(f"""
+                                <div class="matrix-card-red">
+                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #dc2626; padding: 2px 4px; border-radius: 4px;">1ST 5M</span></h5>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">1st 5m Low: ₹{r['First5mLow']}</p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                </div>
+                            """, unsafe_allow_html=True)
+        else:
+            st.info("No active 1st 5-min bearish breakdowns right now.")
+
+        st.markdown("---")
         st.markdown("### 📊 Chartink Volume Surge Scanner: Daily Vol > (20 SMA Vol * 3)")
         surge_stocks = master_df[master_df["VolSurge"] == True].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         st.write(f"Total Volume Surge Stocks Found: **{len(surge_stocks)}**")
