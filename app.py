@@ -13,7 +13,7 @@ def get_ist_time():
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Institutional Pro Intraday Terminal",
+    page_title="SCAN PRO - Stock Market Solutions",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -360,10 +360,12 @@ def execute_master_scan(all_tickers_tuple):
     exec_time = round((time.time() - start_t) * 1000, 2)
     return pd.DataFrame(valid), exec_time
 
-col_h1, col_h2 = st.columns([2, 2])
+col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
-    st.markdown("### ⚡ Master Institutional Pro Terminal")
-    st.markdown("<span style='font-size: 12px; color: #10b981;'>Live PCR + Nifty 50 Breadth + F&O Active</span>", unsafe_allow_html=True)
+    # --- LOGO INTEGRATION (GITHUB logo.png) ---
+    st.image("logo.png", width=350)
+    st.markdown("<span style='font-size: 13px; color: #10b981; font-weight: 700;'>Live PCR + Nifty 50 Breadth + F&O Active Terminal</span>", unsafe_allow_html=True)
+
 with col_h2:
     st.markdown(f"""
         <div class="time-3d-box">
@@ -384,7 +386,6 @@ if not master_df.empty and "Symbol" in master_df.columns:
     n50_green = len(n50_df[n50_df["Change (%)"] > 0])
     n50_red = len(n50_df[n50_df["Change (%)"] < 0])
     
-    # Simulated Live PCR Metrics for Nifty & BankNifty based on overall market breadth
     market_bias_ratio = (n50_green / 50.0) if len(n50_df) > 0 else 0.5
     nifty_pcr = round(0.85 + (market_bias_ratio * 0.45), 2)
     bank_pcr = round(0.80 + (market_bias_ratio * 0.50), 2)
@@ -423,7 +424,7 @@ if master_df.empty or "Symbol" not in master_df.columns:
 else:
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
 
-    # 3D BOLD TABS (F&O STOCKS AT TAB 4)
+    # 3D BOLD TABS
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "📌 1. All Sectors", 
         "📂 2. Sector Stocks", 
@@ -691,7 +692,6 @@ else:
     with tab7:
         st.markdown("### ⚡ 1st Opening 5-Min Candle Breakout / Breakdown")
         
-        # Safe column check to prevent KeyError
         if "First5mStatus" in master_df.columns:
             f5_bull = master_df[master_df["First5mStatus"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
             f5_bear = master_df[master_df["First5mStatus"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
