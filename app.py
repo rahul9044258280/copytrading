@@ -3,6 +3,8 @@ import pandas as pd
 import yfinance as yf
 from datetime import datetime, timezone, timedelta
 import time
+import sqlite3
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 
 # --- IST TIMEZONE (UTC +5:30) ---
@@ -11,12 +13,64 @@ IST = timezone(timedelta(hours=5, minutes=30))
 def get_ist_time():
     return datetime.now(IST)
 
+# --- DATABASE SETUP FOR SAAS USERS ---
+def init_db():
+    conn = sqlite3.connect('users.db', check_same_thread=False)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            email TEXT PRIMARY KEY,
+            password TEXT,
+            plan TEXT DEFAULT 'Free',
+            expiry TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def make_hash(password):
+    return hashlib.sha256(str.encode(password)).hexdigest()
+
+def check_password(password, hashed_text):
+    return make_hash(password) == hashed_text
+
+def update_user_plan(email, plan_name, duration_days):
+    conn = sqlite3.connect('users.db', check_same_thread=False)
+    c = conn.cursor()
+    if plan_name == "Lifetime":
+        exp_date = "2099-12-31 23:59:59"
+    else:
+        exp_date = (datetime.now() + timedelta(days=duration_days)).strftime('%Y-%m-%d %H:%M:%S')
+    c.execute("UPDATE users SET plan = ?, expiry = ? WHERE email = ?", (plan_name, exp_date, email))
+    conn.commit()
+    conn.close()
+
+def get_user_plan_info(email):
+    conn = sqlite3.connect('users.db', check_same_thread=False)
+    c = conn.cursor()
+    c.execute("SELECT plan, expiry FROM users WHERE email = ?", (email,))
+    res = c.fetchone()
+    conn.close()
+    if res:
+        plan, expiry_str = res
+        if plan != "Lifetime" and plan != "Free":
+            try:
+                exp_date = datetime.strptime(expiry_str, '%Y-%m-%d %H:%M:%S')
+                if datetime.now() > exp_date:
+                    return "Free", "Expired"
+            except Exception:
+                pass
+        return plan, expiry_str
+    return "Free", "No Plan"
+
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="SCAN PRO - Stock Market Solutions",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # --- HIGH-PERFORMANCE CINEMATIC, 3D TABS & MARKET DASHBOARD CSS ---
@@ -66,6 +120,15 @@ st.markdown("""
         margin-bottom: 20px;
     }
 
+    .plan-card-dashboard {
+        background: rgba(17, 24, 39, 0.8);
+        border: 1px solid #3b82f6;
+        padding: 10px 14px;
+        border-radius: 10px;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+    }
+
     .stat-card-green {
         background: rgba(16, 185, 129, 0.15);
         border: 1px solid #10b981;
@@ -91,15 +154,6 @@ st.markdown("""
         border-radius: 8px;
         text-align: center;
         box-shadow: 0 4px 10px rgba(59, 130, 246, 0.2);
-    }
-
-    .stat-card-gray {
-        background: rgba(156, 163, 175, 0.15);
-        border: 1px solid #9ca3af;
-        padding: 8px 14px;
-        border-radius: 8px;
-        text-align: center;
-        box-shadow: 0 4px 10px rgba(156, 163, 175, 0.1);
     }
 
     /* BOLD & 3D BOX STYLING FOR TABS */
@@ -179,6 +233,53 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- SESSION STATE MANAGEMENT FOR LOGIN ---
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.user_email = ""
+
+# --- AUTHENTICATION SIDEBAR ---
+st.sidebar.title("🔐 Account Access")
+if not st.session_state.logged_in:
+    auth_choice = st.sidebar.radio("Choose Action", ["Login", "Sign Up"])
+    email_input = st.sidebar.text_input("Gmail Address")
+    pass_input = st.sidebar.text_input("Password", type="password")
+    
+    conn = sqlite3.connect('users.db', check_same_thread=False)
+    c = conn.cursor()
+    
+    if auth_choice == "Sign Up":
+        if st.sidebar.button("Create Account"):
+            if email_input and pass_input:
+                try:
+                    c.execute("INSERT INTO users (email, password, plan, expiry) VALUES (?, ?, ?, ?)",
+                              (email_input, make_hash(pass_input), "Free", "No Plan"))
+                    conn.commit()
+                    st.sidebar.success("Account created successfully! Please login.")
+                except sqlite3.IntegrityError:
+                    st.sidebar.error("Gmail ID pehle se registered hai!")
+            else:
+                st.sidebar.error("Sabhi fields bharna zaroori hai.")
+                
+    elif auth_choice == "Login":
+        if st.sidebar.button("Login"):
+            c.execute("SELECT password FROM users WHERE email = ?", (email_input,))
+            res = c.fetchone()
+            if res and check_password(pass_input, res[0]):
+                st.session_state.logged_in = True
+                st.session_state.user_email = email_input
+                st.rerun()
+            else:
+                st.sidebar.error("Galat Email ya Password!")
+    conn.close()
+    st.stop()
+else:
+    st.sidebar.success(f"Logged in as:\n**{st.session_state.user_email}**")
+    if st.sidebar.button("Logout"):
+        st.session_state.logged_in = False
+        st.session_state.user_email = ""
+        st.rerun()
+
 # --- NIFTY 50 STOCKS LIST ---
 NIFTY_50_TICKERS = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "INFY.NS", "BHARTIARTL.NS", "ITC.NS",
@@ -219,7 +320,7 @@ SECTOR_MAP = {
     "PSU Bank": [
         "SBIN.NS", "PNB.NS", "BANKBARODA.NS", "CANBK.NS", "UNIONBANK.NS", 
         "IOB.NS", "INDIANB.NS", "UCOBANK.NS", "CENTRALBK.NS", "BANKINDIA.NS", 
-        "MAHABANK.NS", "PSB.NS", "IOB.NS"
+        "MAHABANK.NS", "PSB.NS"
     ],
     "Financial Services & NBFC": [
         "BAJFINANCE.NS", "BAJAJFINSV.NS", "CHOLAFIN.NS", "MUTHOOTFIN.NS", "SBICARD.NS", 
@@ -245,15 +346,15 @@ SECTOR_MAP = {
         "GLENMARK.NS", "GRANULES.NS", "AUROPHARMA.NS", "IPCALAB.NS", "BIOCON.NS", 
         "AJANTPHARM.NS", "GLAXO.NS", "PFIZER.NS", "SANOFI.NS", "ABBOTINDIA.NS", 
         "NATCOPHARM.NS", "LAURUSLABS.NS", "JBCHEPHARM.NS", "ERIS.NS", "LALPATHLAB.NS", 
-        "METROPOLIS.NS", "THYROCARE.NS", "POLYMED.NS", "STAR.NS", "FDC.NS", "IMUNOD.NS"
+        "METROPOLIS.NS", "THYROCARE.NS", "POLYMED.NS", "STAR.NS", "FDC.NS"
     ],
     "Energy, Oil & Power": [
         "RELIANCE.NS", "ONGC.NS", "BPCL.NS", "IOC.NS", "POWERGRID.NS", 
         "NTPC.NS", "TATAPOWER.NS", "ADANIGREEN.NS", "GAIL.NS", "COALINDIA.NS", 
         "NHPC.NS", "SJVN.NS", "PETRONET.NS", "OIL.NS", "SUZLON.NS", "INOXWIND.NS", 
         "ADANIPORTS.NS", "TORNTPOWER.NS", "CESC.NS", "JSWENERGY.NS", "ADANIPOWER.NS", 
-        "NHPC.NS", "WAAREE.NS", "BORORENEW.NS", "IDEAFORGE.NS", "SWANENERGY.NS", 
-        "GIPCL.NS", "RPOWER.NS", "RTNPOWER.NS", "JPPOWER.NS", "INEOSSTYRO.NS"
+        "WAAREE.NS", "BORORENEW.NS", "IDEAFORGE.NS", "SWANENERGY.NS", "GIPCL.NS", 
+        "RPOWER.NS", "RTNPOWER.NS", "JPPOWER.NS"
     ],
     "Metal, Mining & Infra": [
         "TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS", "VEDL.NS", "GRASIM.NS", 
@@ -264,26 +365,26 @@ SECTOR_MAP = {
         "MOIL.NS", "KALYANKJIL.NS", "HEG.NS", "GRAPHITE.NS", "SHARDACROP.NS", 
         "GMRINFRA.NS", "PNCINFRA.NS", "HGINFRA.NS", "GRINFRA.NS", "IRCON.NS", 
         "RVNL.NS", "NBCC.NS", "RITES.NS", "ITI.NS", "SCI.NS", "COCHINSHIP.NS", 
-        "MAZDOCK.NS", "GRSE.NS", "DATAPATTNS.NS", "PARAS.NS", "ZENITH.NS"
+        "MAZDOCK.NS", "GRSE.NS", "DATAPATTNS.NS", "PARAS.NS"
     ],
     "FMCG & Consumer Staples": [
         "HINDUNILVR.NS", "ITC.NS", "NESTLEIND.NS", "BRITANNIA.NS", "TATACONSUM.NS", 
         "DABUR.NS", "MARICO.NS", "COLPAL.NS", "GODREJCP.NS", "VBL.NS", 
         "AWL.NS", "PATANJALI.NS", "EMAMI.NS", "RADICO.NS", "UBL.NS", "MCDOWELL-N.NS", 
-        "GILLETTE.NS", "PGHH.NS", "JYOTHYLAB.NS", "BAJAJCON.NS", "ZANDUREALT.NS", 
-        "VENKEYS.NS", "AVADHSUGAR.NS", "BALRAMCHIN.NS", "TRIVENI.NS", "REMSONS.NS"
+        "GILLETTE.NS", "PGHH.NS", "JYOTHYLAB.NS", "BAJAJCON.NS", "VENKEYS.NS", 
+        "AVADHSUGAR.NS", "BALRAMCHIN.NS", "TRIVENI.NS"
     ],
     "Consumer Durables & Retail": [
         "TITAN.NS", "ASIANPAINT.NS", "HAVELLS.NS", "VOLTAS.NS", "WHIRLPOOL.NS", 
         "DIXON.NS", "CROMPTON.NS", "POLYCAB.NS", "KEI.NS", "BERGEPAINT.NS", 
         "TRENT.NS", "DMART.NS", "BLUEDART.NS", "AMBER.NS", "BLUESTARCO.NS", 
-        "KAJARIACER.NS", "CERA.NS", "CENTURYPLY.NS", "GREENPANEL.NS", "SHK.NS", 
-        "CAMPUS.NS", "BATAINDIA.NS", "RELAXO.NS", "PAGEIND.NS", "ABFRL.NS", "VMART.NS"
+        "KAJARIACER.NS", "CERA.NS", "CENTURYPLY.NS", "GREENPANEL.NS", "CAMPUS.NS", 
+        "BATAINDIA.NS", "RELAXO.NS", "PAGEIND.NS", "ABFRL.NS", "VMART.NS"
     ],
     "Realty & Infrastructure": [
         "DLF.NS", "GODREJPROP.NS", "OBEROIRLTY.NS", "PHOENIXLTD.NS", "PRESTIGE.NS", 
         "LODHA.NS", "NBCC.NS", "GRINFRA.NS", "BRIGADE.NS", "SOBHA.NS", 
-        "MAHLIFE.NS", "HEMIPROPERTIES.NS", "ANANTRAJ.NS", "OMAXE.NS", "ASHIANA.NS"
+        "MAHLIFE.NS", "ANANTRAJ.NS", "OMAXE.NS", "ASHIANA.NS"
     ],
     "Chemicals & Fertilizers": [
         "UPL.NS", "PIIND.NS", "SRF.NS", "AARTIIND.NS", "COROMANDEL.NS", 
@@ -296,8 +397,8 @@ SECTOR_MAP = {
         "HAL.NS", "BEL.NS", "BDL.NS", "COCHINSHIP.NS", "MAZDOCK.NS", 
         "SIEMENS.NS", "ABB.NS", "CGPOWER.NS", "BHEL.NS", "THERMAX.NS", 
         "CUMMINSIND.NS", "ESCORTS.NS", "POLYCAB.NS", "HONAUT.NS", "SCHAEFFLER.NS", 
-        "TIMKEN.NS", "SKFINDIA.NS", "VAIBHAVGBL.NS", "GRAUWEIL.NS", "TRIDENT.NS", 
-        "KPRMILL.NS", "WELSPUNLIV.NS", "VARDHACRLC.NS", "LUXIND.NS", "MonteCarlo.NS"
+        "TIMKEN.NS", "SKFINDIA.NS", "VAIBHAVGBL.NS", "TRIDENT.NS", "KPRMILL.NS", 
+        "WELSPUNLIV.NS", "VARDHACRLC.NS", "LUXIND.NS"
     ]
 }
 
@@ -415,43 +516,72 @@ with col_h2:
         </div>
     """, unsafe_allow_html=True)
 
+# --- USER SUBSCRIPTION CHECK & DASHBOARD INTEGRATION (BLUE CIRCLE LOCATION) ---
+user_plan, expiry_info = get_user_plan_info(st.session_state.user_email)
+
+col_d1, col_d2, col_d3, col_d4 = st.columns([1.5, 1, 1, 1])
+
+with col_d1:
+    st.markdown("""
+        <div style="text-align: left; padding: 10px; background: rgba(31, 41, 55, 0.5); border-radius: 10px; border: 1px solid #374151;">
+            <div style="font-weight: 800; font-size: 13px; color: #9ca3af;">SUBSCRIPTION STATUS</div>
+            <div style="font-size: 15px; font-weight: 900; color: #10b981;">🟢 Active Plan: """ + user_plan + """</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+with col_d2:
+    st.markdown("""
+        <div class="plan-card-dashboard">
+            <span style="font-size: 11px; color: #93c5fd; font-weight: 800;">MONTHLY PLAN</span><br>
+            <span style="font-size: 18px; font-weight: 900; color: #ffffff;">₹499 / mo</span>
+        </div>
+    """, unsafe_allow_html=True)
+    if st.button("Activate ₹499", key="btn_m"):
+        update_user_plan(st.session_state.user_email, "Monthly", 30)
+        st.success("Monthly Plan Activated Successfully!")
+        time.sleep(1)
+        st.rerun()
+
+with col_d3:
+    st.markdown("""
+        <div class="plan-card-dashboard" style="border-color: #10b981;">
+            <span style="font-size: 11px; color: #a7f3d0; font-weight: 800;">ANNUAL PLAN</span><br>
+            <span style="font-size: 18px; font-weight: 900; color: #ffffff;">₹4,999 / yr</span>
+        </div>
+    """, unsafe_allow_html=True)
+    if st.button("Activate ₹4,999", key="btn_a"):
+        update_user_plan(st.session_state.user_email, "Annual", 365)
+        st.success("Annual Plan Activated Successfully!")
+        time.sleep(1)
+        st.rerun()
+
+with col_d4:
+    st.markdown("""
+        <div class="plan-card-dashboard" style="border-color: #a855f7;">
+            <span style="font-size: 11px; color: #f0abfc; font-weight: 800;">LIFETIME PLAN</span><br>
+            <span style="font-size: 18px; font-weight: 900; color: #ffffff;">₹9,999 Once</span>
+        </div>
+    """, unsafe_allow_html=True)
+    if st.button("Activate ₹9,999", key="btn_l"):
+        update_user_plan(st.session_state.user_email, "Lifetime", 36500)
+        st.success("Lifetime Plan Activated Successfully!")
+        time.sleep(1)
+        st.rerun()
+
+st.markdown("---")
+
+# --- ACCESS CONTROL CHECK ---
+if user_plan == "Free":
+    st.warning(f"⚠️ **Account ({st.session_state.user_email}) Status**: Free / No Active Plan.")
+    st.info("⚡ Upar dashboard me diye gaye 3 Plans me se koi bhi plan activate karke saare features unlock karein!")
+    st.stop()
+
+st.success(f"🔓 **Active Subscription**: {user_plan} Plan | Access Granted.")
+
 all_tickers = list(set([t for sub in SECTOR_MAP.values() for t in sub] + NIFTY_50_TICKERS + FNO_STOCKS))
 
 with st.spinner("⚡ Scanning market data (Midcaps & Smallcaps included)..."):
     master_df, speed_ms = execute_master_scan(tuple(all_tickers))
-
-if not master_df.empty and "Symbol" in master_df.columns:
-    clean_n50_symbols = [t.replace(".NS", "") for t in NIFTY_50_TICKERS]
-    n50_df = master_df[master_df["Symbol"].isin(clean_n50_symbols)]
-    
-    n50_green = len(n50_df[n50_df["Change (%)"] > 0])
-    n50_red = len(n50_df[n50_df["Change (%)"] < 0])
-
-    # --- 3D BOLD LIVE BREADTH DASHBOARD ---
-    st.markdown(f"""
-        <div class="nifty-3d-box">
-            <div style="text-align: left;">
-                <div style="font-weight: 800; font-size: 13px; color: #9ca3af;">NIFTY 50 BREADTH</div>
-                <div style="font-size: 16px; font-weight: 900; color: #10b981;">🟢 {n50_green} Green Stocks</div>
-                <div style="font-size: 16px; font-weight: 900; color: #ef4444;">🔴 {n50_red} Red Stocks</div>
-            </div>
-            <div class="stat-card-blue">
-                <span style="font-size: 11px; color: #93c5fd; font-weight: 700;">TOTAL MONITORED</span><br>
-                <span style="font-size: 20px; font-weight: 900; color: #ffffff;">{len(master_df)}</span><br>
-                <span style="font-size: 10px; font-weight: 800; color: #60a5fa;">ACTIVE SYMBOLS</span>
-            </div>
-            <div class="stat-card-green">
-                <span style="font-size: 11px; color: #a7f3d0; font-weight: 700;">SCAN SPEED</span><br>
-                <span style="font-size: 20px; font-weight: 900; color: #ffffff;">{speed_ms}</span><br>
-                <span style="font-size: 10px; font-weight: 800; color: #34d399;">MILLISECONDS</span>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("---")
-
-if 'selected_sector_click' not in st.session_state:
-    st.session_state.selected_sector_click = list(SECTOR_MAP.keys())[0]
 
 if master_df.empty or "Symbol" not in master_df.columns:
     st.error("Market data fetch karne me samasya aa rahi hai. Kripya refresh karein.")
@@ -508,15 +638,10 @@ else:
                                     <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Stocks: {row['Total']} | 🟢 {row['Gainers']} 🔴 {row['Losers']}</p>
                                 </div>
                             """, unsafe_allow_html=True)
-                            if st.button(f"🔍 Inspect {row['Sector']}", key=f"s_{row['Sector']}"):
-                                st.session_state.selected_sector_click = row['Sector']
-                                st.rerun()
 
     # --- TAB 2: SECTOR STOCKS ---
     with tab2:
-        sel_sec = st.selectbox("Select Sector", list(SECTOR_MAP.keys()), index=list(SECTOR_MAP.keys()).index(st.session_state.selected_sector_click))
-        st.session_state.selected_sector_click = sel_sec
-        
+        sel_sec = st.selectbox("Select Sector", list(SECTOR_MAP.keys()))
         clean_tks = [t.replace(".NS", "") for t in SECTOR_MAP[sel_sec]]
         stocks_subset = master_df[master_df["Symbol"].isin(clean_tks)].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         
@@ -569,8 +694,6 @@ else:
                                         <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                     </div>
                                 """, unsafe_allow_html=True)
-            else:
-                st.info("No gainers currently.")
                 
         with col_l:
             st.markdown("#### 🔴 All Losers")
@@ -593,8 +716,6 @@ else:
                                         <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                     </div>
                                 """, unsafe_allow_html=True)
-            else:
-                st.info("No losers currently.")
 
     # --- TAB 4: F&O STOCKS SCANNER ---
     with tab4:
@@ -623,8 +744,6 @@ else:
                                     <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
-        else:
-            st.info("No F&O stocks currently available.")
 
     # --- TAB 5: ORB BREAKOUT ---
     with tab5:
@@ -650,8 +769,6 @@ else:
                                     <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
-        else:
-            st.info("No active bullish breakout right now.")
             
         st.markdown(f"#### 🔻 All Bearish ORB Breakdowns ({len(orb_bear)} stocks)")
         if not orb_bear.empty:
@@ -671,8 +788,6 @@ else:
                                     <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
-        else:
-            st.info("No active bearish breakdown right now.")
 
     # --- TAB 6: VWAP + RVOL ORB PRO ---
     with tab6:
@@ -698,8 +813,6 @@ else:
                                     <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
-        else:
-            st.info("Abhi koi Pro Bullish setup active nahi hai.")
             
         st.markdown(f"#### 🔻 All Pro Bearish Setups ({len(pro_bear)} stocks)")
         if not pro_bear.empty:
@@ -719,8 +832,6 @@ else:
                                     <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
-        else:
-            st.info("Abhi koi Pro Bearish setup active nahi hai.")
 
     # --- TAB 7: CHARTINK VOLUME SURGE SCANNER & 1ST 5-MIN BREAKOUTS ---
     with tab7:
@@ -751,8 +862,6 @@ else:
                                     <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
-        else:
-            st.info("No active 1st 5-min bullish breakouts right now.")
 
         st.markdown(f"#### 🔻 1st 5-Min Bearish Breakdowns ({len(f5_bear)} stocks)")
         if not f5_bear.empty:
@@ -772,8 +881,6 @@ else:
                                     <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
-        else:
-            st.info("No active 1st 5-min bearish breakdowns right now.")
 
         st.markdown("---")
         st.markdown("### 📊 Chartink Volume Surge Scanner: Daily Vol > (20 SMA Vol * 3)")
@@ -805,8 +912,6 @@ else:
                                     <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
-        else:
-            st.info("Abhi koi stock Chartink volume surge criteria ko match nahi kar raha hai.")
 
     # --- TAB 8: 9:30 AM INSTITUTIONAL VOL SURGE SCANNER ---
     with tab8:
@@ -832,8 +937,6 @@ else:
                                     <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
-        else:
-            st.info("No active bullish 9:30 surge right now.")
 
         st.markdown(f"#### 🔻 Bearish Vol Surge Movers ({len(surge_930_bear)} stocks)")
         if not surge_930_bear.empty:
@@ -853,8 +956,6 @@ else:
                                     <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
-        else:
-            st.info("No active bearish 9:30 surge right now.")
 
 # Strict 30 Seconds Auto Refresh Loop
 time.sleep(30)
