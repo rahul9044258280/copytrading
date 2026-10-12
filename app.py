@@ -13,13 +13,13 @@ def get_ist_time():
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="SCAN PRO - Stock Market Solutions",
-    page_icon="âš¡",
+    page_title="Institutional Pro Intraday Terminal",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# --- HIGH-PERFORMANCE CINEMATIC, 3D TABS & PCR DASHBOARD CSS ---
+# --- HIGH-PERFORMANCE CINEMATIC, 3D TABS & DASHBOARD CSS ---
 st.markdown("""
     <style>
     .stApp {
@@ -52,7 +52,7 @@ st.markdown("""
         text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
     }
 
-    /* 3D Box Container for Nifty 50 & PCR Summary */
+    /* 3D Box Container for Nifty 50 Breadth Summary */
     .nifty-3d-box {
         background: linear-gradient(145deg, #111827, #1f2937);
         border: 1px solid #374151;
@@ -305,28 +305,28 @@ def fetch_stock_fast(ticker):
 
             first_5m_status = "NORMAL"
             if curr_price > first_5m_high:
-                first_5m_status = "1ST 5M BULLISH BREAKOUT ðŸš€"
+                first_5m_status = "1ST 5M BULLISH BREAKOUT 🚀"
             elif curr_price < first_5m_low:
-                first_5m_status = "1ST 5M BEARISH BREAKDOWN ðŸ”»"
+                first_5m_status = "1ST 5M BEARISH BREAKDOWN 🔻"
 
             status = "NORMAL"
             pro_status = "NORMAL"
             surge_930_status = "NORMAL"
 
             if curr_price > orb_high:
-                status = "BULLISH BREAKOUT ðŸš€"
+                status = "BULLISH BREAKOUT 🚀"
             elif curr_price < orb_low:
-                status = "BEARISH BREAKDOWN ðŸ”»"
+                status = "BEARISH BREAKDOWN 🔻"
 
             if curr_price > orb_high and curr_price > vwap and rvol >= 1.3:
-                pro_status = "PRO BULLISH ðŸš€"
+                pro_status = "PRO BULLISH 🚀"
             elif curr_price < orb_low and curr_price < vwap and rvol >= 1.3:
-                pro_status = "PRO BEARISH ðŸ”»"
+                pro_status = "PRO BEARISH 🔻"
 
             if rvol >= 2.5 and curr_price > orb_high and curr_price > vwap and change_pct >= 1.2:
-                surge_930_status = "9:30 VOL SURGE BULLISH ðŸš€"
+                surge_930_status = "9:30 VOL SURGE BULLISH 🚀"
             elif rvol >= 2.5 and curr_price < orb_low and curr_price < vwap and change_pct <= -1.2:
-                surge_930_status = "9:30 VOL SURGE BEARISH ðŸ”»"
+                surge_930_status = "9:30 VOL SURGE BEARISH 🔻"
 
             return {
                 "Symbol": ticker.replace(".NS", ""),
@@ -360,30 +360,21 @@ def execute_master_scan(all_tickers_tuple):
     exec_time = round((time.time() - start_t) * 1000, 2)
     return pd.DataFrame(valid), exec_time
 
-col_h1, col_h2 = st.columns([3, 1])
+col_h1, col_h2 = st.columns([2, 2])
 with col_h1:
-    # --- SCAN PRO LOGO INTEGRATION (NO ERROR) ---
-    st.markdown("""
-        <div style="margin-bottom: 5px;">
-            <h1 style="font-size: 40px; font-weight: 900; background: linear-gradient(90deg, #00d2ff, #3a7bd5, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; padding: 0; letter-spacing: 1px;">
-                âš¡ SCAN PRO
-            </h1>
-            <p style="font-size: 14px; color: #38bdf8; font-weight: 800; margin: 0; letter-spacing: 2px;">STOCK MARKET SOLUTIONS</p>
-        </div>
-        <span style='font-size: 13px; color: #10b981; font-weight: 700;'>Live PCR + Nifty 50 Breadth + F&O Active Terminal</span>
-    """, unsafe_allow_html=True)
-
+    st.markdown("### ⚡ Master Institutional Pro Terminal")
+    st.markdown("<span style='font-size: 12px; color: #10b981;'>Nifty 50 Breadth + F&O Active</span>", unsafe_allow_html=True)
 with col_h2:
     st.markdown(f"""
         <div class="time-3d-box">
-            <span style="font-size: 11px; color: #a7f3d0; font-weight: 700; display: block; margin-bottom: 2px;">ðŸŸ¢ IST LIVE TIME</span>
+            <span style="font-size: 11px; color: #a7f3d0; font-weight: 700; display: block; margin-bottom: 2px;">🟢 IST LIVE TIME</span>
             <span class="time-3d-text">{get_ist_time().strftime('%H:%M:%S')}</span>
         </div>
     """, unsafe_allow_html=True)
 
 all_tickers = list(set([t for sub in SECTOR_MAP.values() for t in sub] + NIFTY_50_TICKERS + FNO_STOCKS))
 
-with st.spinner("âš¡ Scanning market data..."):
+with st.spinner("⚡ Scanning market data..."):
     master_df, speed_ms = execute_master_scan(tuple(all_tickers))
 
 if not master_df.empty and "Symbol" in master_df.columns:
@@ -392,31 +383,14 @@ if not master_df.empty and "Symbol" in master_df.columns:
     
     n50_green = len(n50_df[n50_df["Change (%)"] > 0])
     n50_red = len(n50_df[n50_df["Change (%)"] < 0])
-    
-    market_bias_ratio = (n50_green / 50.0) if len(n50_df) > 0 else 0.5
-    nifty_pcr = round(0.85 + (market_bias_ratio * 0.45), 2)
-    bank_pcr = round(0.80 + (market_bias_ratio * 0.50), 2)
-    
-    nifty_sentiment = "ðŸŸ¢ BULLISH" if nifty_pcr > 1.0 else ("ðŸ”´ BEARISH" if nifty_pcr < 0.95 else "âšª NEUTRAL")
-    bank_sentiment = "ðŸŸ¢ BULLISH" if bank_pcr > 1.0 else ("ðŸ”´ BEARISH" if bank_pcr < 0.95 else "âšª NEUTRAL")
 
-    # --- 3D BOLD LIVE BREADTH & PCR DASHBOARD ---
+    # --- 3D BOLD LIVE BREADTH DASHBOARD ---
     st.markdown(f"""
         <div class="nifty-3d-box">
             <div style="text-align: left;">
                 <div style="font-weight: 800; font-size: 13px; color: #9ca3af;">NIFTY 50 BREADTH</div>
-                <div style="font-size: 15px; font-weight: 900; color: #10b981;">ðŸŸ¢ {n50_green} Green</div>
-                <div style="font-size: 15px; font-weight: 900; color: #ef4444;">ðŸ”´ {n50_red} Red</div>
-            </div>
-            <div class="stat-card-blue">
-                <span style="font-size: 11px; color: #93c5fd; font-weight: 700;">NIFTY LIVE PCR</span><br>
-                <span style="font-size: 20px; font-weight: 900; color: #ffffff;">{nifty_pcr}</span><br>
-                <span style="font-size: 10px; font-weight: 800; color: #60a5fa;">{nifty_sentiment}</span>
-            </div>
-            <div class="stat-card-blue">
-                <span style="font-size: 11px; color: #93c5fd; font-weight: 700;">BANKNIFTY LIVE PCR</span><br>
-                <span style="font-size: 20px; font-weight: 900; color: #ffffff;">{bank_pcr}</span><br>
-                <span style="font-size: 10px; font-weight: 800; color: #60a5fa;">{bank_sentiment}</span>
+                <div style="font-size: 15px; font-weight: 900; color: #10b981;">🟢 {n50_green} Green</div>
+                <div style="font-size: 15px; font-weight: 900; color: #ef4444;">🔴 {n50_red} Red</div>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -431,21 +405,21 @@ if master_df.empty or "Symbol" not in master_df.columns:
 else:
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
 
-    # 3D BOLD TABS
+    # 3D BOLD TABS (F&O STOCKS AT TAB 4)
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-        "ðŸ“Œ 1. All Sectors", 
-        "ðŸ“‚ 2. Sector Stocks", 
-        "ðŸ”¥ 3. Gainers/Losers", 
-        "ðŸ”¥ 4. F&O Stocks",
-        "âš¡ 5. 9:15 ORB",
-        "ðŸ’Ž 6. VWAP+RVol",
-        "ðŸ“Š 7. Chartink Vol Surge",
-        "âš¡ 8. Institutional Vol Surge (9:30 AM)"
+        "📌 1. All Sectors", 
+        "📂 2. Sector Stocks", 
+        "🔥 3. Gainers/Losers", 
+        "🔥 4. F&O Stocks",
+        "⚡ 5. 9:15 ORB",
+        "💎 6. VWAP+RVol",
+        "📊 7. Chartink Vol Surge",
+        "⚡ 8. Institutional Vol Surge (9:30 AM)"
     ])
 
     # --- TAB 1: ALL SECTORS MATRIX ---
     with tab1:
-        st.caption(f"âš¡ Feed Latency: {speed_ms} ms | Monitored Stocks: {len(master_df)} | Auto-Refresh: 30s")
+        st.caption(f"⚡ Feed Latency: {speed_ms} ms | Monitored Stocks: {len(master_df)} | Auto-Refresh: 30s")
         
         sector_summary = []
         for sec, tks in SECTOR_MAP.items():
@@ -471,17 +445,17 @@ else:
                         row = sec_summary_df.iloc[i + j]
                         avg_val = row["Avg Change (%)"]
                         card_class = "matrix-card-green" if avg_val >= 0 else "matrix-card-red"
-                        arrow = "ðŸš€" if avg_val >= 0 else "ðŸ”»"
+                        arrow = "🚀" if avg_val >= 0 else "🔻"
                         
                         with cols[j]:
                             st.markdown(f"""
                                 <div class="{card_class}">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{row['Sector']}</h5>
                                     <h3 style="margin: 4px 0; color: #ffffff;">{avg_val:+.2f}% {arrow}</h3>
-                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Stocks: {row['Total']} | ðŸŸ¢ {row['Gainers']} ðŸ”´ {row['Losers']}</p>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Stocks: {row['Total']} | 🟢 {row['Gainers']} 🔴 {row['Losers']}</p>
                                 </div>
                             """, unsafe_allow_html=True)
-                            if st.button(f"ðŸ” Inspect {row['Sector']}", key=f"s_{row['Sector']}"):
+                            if st.button(f"🔍 Inspect {row['Sector']}", key=f"s_{row['Sector']}"):
                                 st.session_state.selected_sector_click = row['Sector']
                                 st.rerun()
 
@@ -510,19 +484,19 @@ else:
                             st.markdown(f"""
                                 <div class="{card_cls}">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">â‚¹{stk['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{stk['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
                                     <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {stk['Volume']:,} | RVol: {stk['RVol']}x</p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
 
     # --- TAB 3: GAINERS & LOSERS ---
     with tab3:
-        st.markdown("### ðŸ“Š Complete Market Gainers & Losers (Exact Daily Gain %)")
+        st.markdown("### 📊 Complete Market Gainers & Losers (Exact Daily Gain %)")
         col_g, col_l = st.columns(2)
         
         with col_g:
-            st.markdown("#### ðŸŸ¢ All Gainers")
+            st.markdown("#### 🟢 All Gainers")
             all_gainers = master_df[master_df["Change (%)"] > 0].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
             st.write(f"Total Gainers: **{len(all_gainers)}**")
             if not all_gainers.empty:
@@ -537,16 +511,16 @@ else:
                                 st.markdown(f"""
                                     <div class="matrix-card-green">
                                         <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                        <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} (+{r['Change (%)']:.2f}%)</h3>
+                                        <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} (+{r['Change (%)']:.2f}%)</h3>
                                         <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,} | RVol: {r['RVol']}x</p>
-                                        <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                        <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                     </div>
                                 """, unsafe_allow_html=True)
             else:
                 st.info("No gainers currently.")
                 
         with col_l:
-            st.markdown("#### ðŸ”´ All Losers")
+            st.markdown("#### 🔴 All Losers")
             all_losers = master_df[master_df["Change (%)"] < 0].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
             st.write(f"Total Losers: **{len(all_losers)}**")
             if not all_losers.empty:
@@ -561,9 +535,9 @@ else:
                                 st.markdown(f"""
                                     <div class="matrix-card-red">
                                         <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                        <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:.2f}%)</h3>
+                                        <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:.2f}%)</h3>
                                         <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,} | RVol: {r['RVol']}x</p>
-                                        <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                        <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                     </div>
                                 """, unsafe_allow_html=True)
             else:
@@ -571,7 +545,7 @@ else:
 
     # --- TAB 4: F&O STOCKS SCANNER ---
     with tab4:
-        st.markdown("### ðŸ”¥ Futures & Options (F&O) Active Stocks Scanner")
+        st.markdown("### 🔥 Futures & Options (F&O) Active Stocks Scanner")
         clean_fno = [t.replace(".NS", "") for t in FNO_STOCKS]
         fno_df = master_df[master_df["Symbol"].isin(clean_fno)].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         st.write(f"Total F&O Scanned Stocks: **{len(fno_df)}**")
@@ -591,9 +565,9 @@ else:
                             st.markdown(f"""
                                 <div class="{card_cls}">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #9333ea; padding: 2px 4px; border-radius: 4px;">F&O</span></h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
                                     <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,} | RVol: {r['RVol']}x</p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
         else:
@@ -601,11 +575,11 @@ else:
 
     # --- TAB 5: ORB BREAKOUT ---
     with tab5:
-        st.markdown("### âš¡ Complete 9:15 - 9:30 Opening Range Breakout")
+        st.markdown("### ⚡ Complete 9:15 - 9:30 Opening Range Breakout")
         orb_bull = master_df[master_df["Status"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         orb_bear = master_df[master_df["Status"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
         
-        st.markdown(f"#### ðŸš€ All Bullish ORB Breakouts ({len(orb_bull)} stocks)")
+        st.markdown(f"#### 🚀 All Bullish ORB Breakouts ({len(orb_bull)} stocks)")
         if not orb_bull.empty:
             for i in range(0, len(orb_bull), 4):
                 cols = st.columns(4)
@@ -618,15 +592,15 @@ else:
                             st.markdown(f"""
                                 <div class="matrix-card-green">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB High: â‚¹{r['ORB High']}</p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB High: ₹{r['ORB High']}</p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
         else:
             st.info("No active bullish breakout right now.")
             
-        st.markdown(f"#### ðŸ”» All Bearish ORB Breakdowns ({len(orb_bear)} stocks)")
+        st.markdown(f"#### 🔻 All Bearish ORB Breakdowns ({len(orb_bear)} stocks)")
         if not orb_bear.empty:
             for i in range(0, len(orb_bear), 4):
                 cols = st.columns(4)
@@ -639,9 +613,9 @@ else:
                             st.markdown(f"""
                                 <div class="matrix-card-red">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB Low: â‚¹{r['ORB Low']}</p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB Low: ₹{r['ORB Low']}</p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
         else:
@@ -649,11 +623,11 @@ else:
 
     # --- TAB 6: VWAP + RVOL ORB PRO ---
     with tab6:
-        st.markdown("### ðŸ’Ž Complete Institutional Pro Setups (ORB + VWAP + RVol >= 1.3x)")
+        st.markdown("### 💎 Complete Institutional Pro Setups (ORB + VWAP + RVol >= 1.3x)")
         pro_bull = master_df[master_df["ProStatus"].str.contains("PRO BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         pro_bear = master_df[master_df["ProStatus"].str.contains("PRO BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
         
-        st.markdown(f"#### ðŸš€ All Pro Bullish Setups ({len(pro_bull)} stocks)")
+        st.markdown(f"#### 🚀 All Pro Bullish Setups ({len(pro_bull)} stocks)")
         if not pro_bull.empty:
             for i in range(0, len(pro_bull), 4):
                 cols = st.columns(4)
@@ -666,15 +640,15 @@ else:
                             st.markdown(f"""
                                 <div class="matrix-card-green">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #047857; padding: 2px 4px; border-radius: 4px;">PRO</span></h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: â‚¹{r['VWAP']} | RVol: <b>{r['RVol']}x</b></p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: ₹{r['VWAP']} | RVol: <b>{r['RVol']}x</b></p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
         else:
             st.info("Abhi koi Pro Bullish setup active nahi hai.")
             
-        st.markdown(f"#### ðŸ”» All Pro Bearish Setups ({len(pro_bear)} stocks)")
+        st.markdown(f"#### 🔻 All Pro Bearish Setups ({len(pro_bear)} stocks)")
         if not pro_bear.empty:
             for i in range(0, len(pro_bear), 4):
                 cols = st.columns(4)
@@ -687,9 +661,9 @@ else:
                             st.markdown(f"""
                                 <div class="matrix-card-red">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #b91c1c; padding: 2px 4px; border-radius: 4px;">PRO</span></h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: â‚¹{r['VWAP']} | RVol: <b>{r['RVol']}x</b></p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: ₹{r['VWAP']} | RVol: <b>{r['RVol']}x</b></p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
         else:
@@ -697,7 +671,7 @@ else:
 
     # --- TAB 7: CHARTINK VOLUME SURGE SCANNER & 1ST 5-MIN BREAKOUTS ---
     with tab7:
-        st.markdown("### âš¡ 1st Opening 5-Min Candle Breakout / Breakdown")
+        st.markdown("### ⚡ 1st Opening 5-Min Candle Breakout / Breakdown")
         
         if "First5mStatus" in master_df.columns:
             f5_bull = master_df[master_df["First5mStatus"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
@@ -706,7 +680,7 @@ else:
             f5_bull = pd.DataFrame()
             f5_bear = pd.DataFrame()
         
-        st.markdown(f"#### ðŸš€ 1st 5-Min Bullish Breakouts ({len(f5_bull)} stocks)")
+        st.markdown(f"#### 🚀 1st 5-Min Bullish Breakouts ({len(f5_bull)} stocks)")
         if not f5_bull.empty:
             for i in range(0, len(f5_bull), 4):
                 cols = st.columns(4)
@@ -719,15 +693,15 @@ else:
                             st.markdown(f"""
                                 <div class="matrix-card-green">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #059669; padding: 2px 4px; border-radius: 4px;">1ST 5M</span></h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">1st 5m High: â‚¹{r['First5mHigh']}</p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">1st 5m High: ₹{r['First5mHigh']}</p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
         else:
             st.info("No active 1st 5-min bullish breakouts right now.")
 
-        st.markdown(f"#### ðŸ”» 1st 5-Min Bearish Breakdowns ({len(f5_bear)} stocks)")
+        st.markdown(f"#### 🔻 1st 5-Min Bearish Breakdowns ({len(f5_bear)} stocks)")
         if not f5_bear.empty:
             for i in range(0, len(f5_bear), 4):
                 cols = st.columns(4)
@@ -740,16 +714,16 @@ else:
                             st.markdown(f"""
                                 <div class="matrix-card-red">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #dc2626; padding: 2px 4px; border-radius: 4px;">1ST 5M</span></h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">1st 5m Low: â‚¹{r['First5mLow']}</p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">1st 5m Low: ₹{r['First5mLow']}</p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
         else:
             st.info("No active 1st 5-min bearish breakdowns right now.")
 
         st.markdown("---")
-        st.markdown("### ðŸ“Š Chartink Volume Surge Scanner: Daily Vol > (20 SMA Vol * 3)")
+        st.markdown("### 📊 Chartink Volume Surge Scanner: Daily Vol > (20 SMA Vol * 3)")
         
         if "VolSurge" in master_df.columns:
             surge_stocks = master_df[master_df["VolSurge"] == True].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
@@ -773,9 +747,9 @@ else:
                             st.markdown(f"""
                                 <div class="{card_cls}">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #2563eb; padding: 2px 4px; border-radius: 4px;">SURGE</span></h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
                                     <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,} | 20SMA: {r['SMA_Vol']:,}</p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
         else:
@@ -783,11 +757,11 @@ else:
 
     # --- TAB 8: 9:30 AM INSTITUTIONAL VOL SURGE SCANNER ---
     with tab8:
-        st.markdown("### âš¡ 9:30 AM Institutional Volume Surge Screener")
+        st.markdown("### ⚡ 9:30 AM Institutional Volume Surge Screener")
         surge_930_bull = master_df[master_df["Surge930Status"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         surge_930_bear = master_df[master_df["Surge930Status"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
 
-        st.markdown(f"#### ðŸš€ Bullish Vol Surge Movers ({len(surge_930_bull)} stocks)")
+        st.markdown(f"#### 🚀 Bullish Vol Surge Movers ({len(surge_930_bull)} stocks)")
         if not surge_930_bull.empty:
             for i in range(0, len(surge_930_bull), 4):
                 cols = st.columns(4)
@@ -800,15 +774,15 @@ else:
                             st.markdown(f"""
                                 <div class="matrix-card-green">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #059669; padding: 2px 4px; border-radius: 4px;">SURGE</span></h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">RVol: <b>{r['RVol']}x</b> | VWAP: â‚¹{r['VWAP']}</p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">RVol: <b>{r['RVol']}x</b> | VWAP: ₹{r['VWAP']}</p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
         else:
             st.info("No active bullish 9:30 surge right now.")
 
-        st.markdown(f"#### ðŸ”» Bearish Vol Surge Movers ({len(surge_930_bear)} stocks)")
+        st.markdown(f"#### 🔻 Bearish Vol Surge Movers ({len(surge_930_bear)} stocks)")
         if not surge_930_bear.empty:
             for i in range(0, len(surge_930_bear), 4):
                 cols = st.columns(4)
@@ -821,9 +795,9 @@ else:
                             st.markdown(f"""
                                 <div class="matrix-card-red">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #dc2626; padding: 2px 4px; border-radius: 4px;">SURGE</span></h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">RVol: <b>{r['RVol']}x</b> | VWAP: â‚¹{r['VWAP']}</p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">RVol: <b>{r['RVol']}x</b> | VWAP: ₹{r['VWAP']}</p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                             """, unsafe_allow_html=True)
         else:
