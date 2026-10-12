@@ -32,6 +32,12 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
+    /* Hide Streamlit Running Pill / Interaction Spinner */
+    [data-testid="stStatusWidget"] {
+        visibility: hidden;
+        display: none;
+    }
+
     /* 3D BOLD CORNER TIME BOX STYLING */
     .time-3d-box {
         background: linear-gradient(145deg, #0d1e18, #052e21);
@@ -181,7 +187,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- LIVE NSE OPTION CHAIN FETCHER MATCHING NIFTYTRADER ---
-@st.cache_data(ttl=30)
 def fetch_live_nifty_pcr():
     try:
         headers = {
@@ -226,7 +231,6 @@ def fetch_live_nifty_pcr():
     except Exception:
         pass
     
-    # Accurate fallback matching live NiftyTrader range
     try:
         tk = yf.Ticker("^NSEI")
         df = tk.history(period="1d")
@@ -405,7 +409,8 @@ def fetch_stock_fast(ticker):
         return None
     return None
 
-@st.cache_data(ttl=15)
+# --- TOTALLY SILENT BACKGROUND CACHED FUNCTION ---
+@st.cache_data(ttl=30, show_spinner=False)
 def execute_master_scan(all_tickers_tuple):
     start_t = time.time()
     with ThreadPoolExecutor(max_workers=100) as executor:
@@ -436,7 +441,7 @@ with col_h2:
 
 all_tickers = list(set([t for sub in SECTOR_MAP.values() for t in sub] + NIFTY_50_TICKERS + FNO_STOCKS))
 
-# --- SILENT BACKGROUND SCANNING (NO SPINNER, NO POPUP) ---
+# --- FULLY BACKGROUND SCAN WITH ZERO UI POPUPS ---
 master_df, speed_ms = execute_master_scan(tuple(all_tickers))
 
 if not master_df.empty and "Symbol" in master_df.columns:
@@ -854,6 +859,6 @@ else:
         else:
             st.info("Market hours ke dauran har 30 min par PCR history yaha update hoti rahegi.")
 
-# --- SILENT BACKGROUND LOOP (NO DISTURBANCE) ---
+# --- SILENT BACKGROUND LOOP ---
 time.sleep(30)
 st.rerun()
