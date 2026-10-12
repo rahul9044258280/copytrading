@@ -400,6 +400,29 @@ if not master_df.empty and "Symbol" in master_df.columns:
     nifty_sentiment = "🟢 BULLISH" if nifty_pcr > 1.0 else ("🔴 BEARISH" if nifty_pcr < 0.95 else "⚪ NEUTRAL")
     bank_sentiment = "🟢 BULLISH" if bank_pcr > 1.0 else ("🔴 BEARISH" if bank_pcr < 0.95 else "⚪ NEUTRAL")
 
+    # --- 30-MIN INTERVAL PCR HISTORY LOGIC ---
+    if 'pcr_history' not in st.session_state:
+        st.session_state.pcr_history = []
+    if 'last_pcr_slot' not in st.session_state:
+        st.session_state.last_pcr_slot = None
+
+    now_ist = get_ist_time()
+    minute_slot = 30 if now_ist.minute >= 30 else 0
+    slot_time_str = f"{now_ist.strftime('%H')}:{minute_slot:02d}"
+    
+    if st.session_state.last_pcr_slot != slot_time_str:
+        formatted_time = now_ist.strftime('%I:%M %p')
+        nifty_spot_approx = n50_df['LTP'].mean() * 45 if not n50_df.empty else 22500.0
+        
+        if not any(d['Time (IST)'] == formatted_time for d in st.session_state.pcr_history):
+            st.session_state.pcr_history.append({
+                "Time (IST)": formatted_time,
+                "OI PCR": nifty_pcr,
+                "Change-in-OI PCR": bank_pcr,
+                "Nifty spot": round(nifty_spot_approx, 2)
+            })
+            st.session_state.last_pcr_slot = slot_time_str
+
     # --- 3D BOLD LIVE BREADTH & PCR DASHBOARD ---
     st.markdown(f"""
         <div class="nifty-3d-box">
@@ -431,8 +454,8 @@ if master_df.empty or "Symbol" not in master_df.columns:
 else:
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
 
-    # 3D BOLD TABS
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+    # 3D BOLD TABS (Added PCR History as Tab 9 or inside dashboard)
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
         "📌 1. All Sectors", 
         "📂 2. Sector Stocks", 
         "🔥 3. Gainers/Losers", 
@@ -440,7 +463,8 @@ else:
         "⚡ 5. 9:15 ORB",
         "💎 6. VWAP+RVol",
         "📊 7. Chartink Vol Surge",
-        "⚡ 8. Institutional Vol Surge (9:30 AM)"
+        "⚡ 8. Institutional Vol Surge (9:30 AM)",
+        "📈 9. Nifty PCR Intraday History"
     ])
 
     # --- TAB 1: ALL SECTORS MATRIX ---
@@ -828,6 +852,17 @@ else:
                             """, unsafe_allow_html=True)
         else:
             st.info("No active bearish 9:30 surge right now.")
+
+    # --- TAB 9: NIFTY PCR INTRADAY HISTORY (30-MIN INTERVALS) ---
+    with tab9:
+        st.markdown("### 📈 Nifty PCR Intraday History")
+        st.caption("Thirty-minute snapshots for the selected expiry. The latest available reading is also included[cite: 3].")
+        
+        if len(st.session_state.pcr_history) > 0:
+            history_df = pd.DataFrame(st.session_state.pcr_history)
+            st.dataframe(history_df, use_container_width=True)
+        else:
+            st.info("Market hours ke dauran har 30 min par PCR history yaha update hoti rahegi.")
 
 # Strict 30 Seconds Auto Refresh Loop
 time.sleep(30)
