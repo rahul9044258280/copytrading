@@ -13,13 +13,13 @@ def get_ist_time():
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Institutional Pro Intraday Terminal",
+    page_title="SCAN PRO - Stock Market Solutions",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# --- HIGH-PERFORMANCE CINEMATIC, 3D TABS & DASHBOARD CSS ---
+# --- HIGH-PERFORMANCE CINEMATIC, 3D TABS & MARKET DASHBOARD CSS ---
 st.markdown("""
     <style>
     .stApp {
@@ -360,10 +360,19 @@ def execute_master_scan(all_tickers_tuple):
     exec_time = round((time.time() - start_t) * 1000, 2)
     return pd.DataFrame(valid), exec_time
 
-col_h1, col_h2 = st.columns([2, 2])
+col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
-    st.markdown("### ⚡ Master Institutional Pro Terminal")
-    st.markdown("<span style='font-size: 12px; color: #10b981;'>Nifty 50 Breadth + F&O Active</span>", unsafe_allow_html=True)
+    # --- SCAN PRO LOGO INTEGRATION (NO ERROR) ---
+    st.markdown("""
+        <div style="margin-bottom: 5px;">
+            <h1 style="font-size: 40px; font-weight: 900; background: linear-gradient(90deg, #00d2ff, #3a7bd5, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; padding: 0; letter-spacing: 1px;">
+                ⚡ SCAN PRO
+            </h1>
+            <p style="font-size: 14px; color: #38bdf8; font-weight: 800; margin: 0; letter-spacing: 2px;">STOCK MARKET SOLUTIONS</p>
+        </div>
+        <span style='font-size: 13px; color: #10b981; font-weight: 700;'>Live Nifty 50 Breadth + F&O Active Terminal</span>
+    """, unsafe_allow_html=True)
+
 with col_h2:
     st.markdown(f"""
         <div class="time-3d-box">
@@ -389,8 +398,18 @@ if not master_df.empty and "Symbol" in master_df.columns:
         <div class="nifty-3d-box">
             <div style="text-align: left;">
                 <div style="font-weight: 800; font-size: 13px; color: #9ca3af;">NIFTY 50 BREADTH</div>
-                <div style="font-size: 15px; font-weight: 900; color: #10b981;">🟢 {n50_green} Green</div>
-                <div style="font-size: 15px; font-weight: 900; color: #ef4444;">🔴 {n50_red} Red</div>
+                <div style="font-size: 16px; font-weight: 900; color: #10b981;">🟢 {n50_green} Green Stocks</div>
+                <div style="font-size: 16px; font-weight: 900; color: #ef4444;">🔴 {n50_red} Red Stocks</div>
+            </div>
+            <div class="stat-card-blue">
+                <span style="font-size: 11px; color: #93c5fd; font-weight: 700;">TOTAL MONITORED</span><br>
+                <span style="font-size: 20px; font-weight: 900; color: #ffffff;">{len(master_df)}</span><br>
+                <span style="font-size: 10px; font-weight: 800; color: #60a5fa;">ACTIVE SYMBOLS</span>
+            </div>
+            <div class="stat-card-green">
+                <span style="font-size: 11px; color: #a7f3d0; font-weight: 700;">SCAN SPEED</span><br>
+                <span style="font-size: 20px; font-weight: 900; color: #ffffff;">{speed_ms}</span><br>
+                <span style="font-size: 10px; font-weight: 800; color: #34d399;">MILLISECONDS</span>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -405,7 +424,7 @@ if master_df.empty or "Symbol" not in master_df.columns:
 else:
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
 
-    # 3D BOLD TABS (F&O STOCKS AT TAB 4)
+    # 3D BOLD TABS
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "📌 1. All Sectors", 
         "📂 2. Sector Stocks", 
