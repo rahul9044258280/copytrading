@@ -85,7 +85,6 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* 3D BOLD CORNER TIME BOX STYLING */
     .time-3d-box {
         background: linear-gradient(145deg, #0d1e18, #052e21);
         border: 2px solid #10b981;
@@ -106,20 +105,6 @@ st.markdown("""
         text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
     }
 
-    /* 3D Box Container for Nifty 50 Breadth Summary */
-    .nifty-3d-box {
-        background: linear-gradient(145deg, #111827, #1f2937);
-        border: 1px solid #374151;
-        border-radius: 12px;
-        padding: 14px 20px;
-        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-        display: flex;
-        justify-content: space-around;
-        align-items: center;
-        margin-top: 10px;
-        margin-bottom: 20px;
-    }
-
     .plan-card-dashboard {
         background: rgba(17, 24, 39, 0.8);
         border: 1px solid #3b82f6;
@@ -129,34 +114,6 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
     }
 
-    .stat-card-green {
-        background: rgba(16, 185, 129, 0.15);
-        border: 1px solid #10b981;
-        padding: 8px 14px;
-        border-radius: 8px;
-        text-align: center;
-        box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);
-    }
-
-    .stat-card-red {
-        background: rgba(239, 68, 68, 0.15);
-        border: 1px solid #ef4444;
-        padding: 8px 14px;
-        border-radius: 8px;
-        text-align: center;
-        box-shadow: 0 4px 10px rgba(239, 68, 68, 0.2);
-    }
-
-    .stat-card-blue {
-        background: rgba(59, 130, 246, 0.15);
-        border: 1px solid #3b82f6;
-        padding: 8px 14px;
-        border-radius: 8px;
-        text-align: center;
-        box-shadow: 0 4px 10px rgba(59, 130, 246, 0.2);
-    }
-
-    /* BOLD & 3D BOX STYLING FOR TABS */
     .stTabs [data-baseweb="tab-list"] {
         gap: 10px !important;
         background-color: transparent !important;
@@ -170,26 +127,12 @@ st.markdown("""
         border-radius: 10px !important;
         padding: 10px 16px !important;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
-        transition: all 0.2s ease-in-out !important;
-    }
-
-    .stTabs [data-baseweb="tab"] p {
-        font-size: 14px !important;
-        font-weight: 800 !important;
-        color: #cbd5e1 !important;
-        letter-spacing: 0.3px !important;
     }
 
     .stTabs [aria-selected="true"] {
         background: linear-gradient(145deg, #1e293b, #0f172a) !important;
         border: 2px solid #10b981 !important;
         box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
-        transform: translateY(-2px) !important;
-    }
-
-    .stTabs [aria-selected="true"] p {
-        color: #10b981 !important;
-        font-size: 15px !important;
     }
 
     .matrix-card-green {
@@ -199,10 +142,6 @@ st.markdown("""
         border-radius: 10px;
         box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2);
         margin-bottom: 10px;
-        transition: transform 0.15s ease;
-    }
-    .matrix-card-green:hover {
-        transform: translateY(-2px);
     }
 
     .matrix-card-red {
@@ -212,10 +151,6 @@ st.markdown("""
         border-radius: 10px;
         box-shadow: 0 4px 14px rgba(239, 68, 68, 0.2);
         margin-bottom: 10px;
-        transition: transform 0.15s ease;
-    }
-    .matrix-card-red:hover {
-        transform: translateY(-2px);
     }
 
     .tv-link {
@@ -292,7 +227,7 @@ NIFTY_50_TICKERS = [
     "ONGC.NS", "NESTLEIND.NS", "SHRIRAMFIN.NS", "BEL.NS"
 ]
 
-# --- F&O STOCKS UNIVERSE (TOP DERIVATIVES) ---
+# --- F&O STOCKS UNIVERSE ---
 FNO_STOCKS = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "INFY.NS", "SBIN.NS", "AXISBANK.NS",
     "KOTAKBANK.NS", "BAJFINANCE.NS", "TATAMOTORS.NS", "MARUTI.NS", "M&M.NS", "SUNPHARMA.NS",
@@ -308,141 +243,87 @@ SECTOR_MAP = {
         "TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "LTIM.NS", 
         "MPHASIS.NS", "COFORGE.NS", "PERSISTENT.NS", "OFSS.NS", "KPITTECH.NS", 
         "TATAELXSI.NS", "CYIENT.NS", "LTTS.NS", "BSOFT.NS", "ZENSARTECH.NS", 
-        "INTELLECT.NS", "BBOX.NS", "NAUKRI.NS", "MINDTREE.NS", "SONATSOFTW.NS", 
-        "TANLA.NS", "RATEGAIN.NS", "FSL.NS", "CAMS.NS", "LATENTVIEW.NS", "HAPPYFORGE.NS"
+        "INTELLECT.NS", "NAUKRI.NS", "SONATSOFTW.NS", "TANLA.NS", "RATEGAIN.NS", "CAMS.NS"
     ],
     "Private Bank": [
         "HDFCBANK.NS", "ICICIBANK.NS", "KOTAKBANK.NS", "AXISBANK.NS", "INDUSINDBK.NS", 
         "FEDERALBNK.NS", "AUBANK.NS", "BANDHANBNK.NS", "IDFCFIRSTB.NS", "RBLBANK.NS", 
-        "CITYUNIONB.NS", "CUB.NS", "KARURVYSYA.NS", "IDBI.NS", "SOUTHBANK.NS", 
-        "J&KBANK.NS", "CSBBANK.NS", "DCBBANK.NS", "NAINITALBK.NS"
+        "CITYUNIONB.NS", "KARURVYSYA.NS", "IDBI.NS", "SOUTHBANK.NS"
     ],
     "PSU Bank": [
         "SBIN.NS", "PNB.NS", "BANKBARODA.NS", "CANBK.NS", "UNIONBANK.NS", 
-        "IOB.NS", "INDIANB.NS", "UCOBANK.NS", "CENTRALBK.NS", "BANKINDIA.NS", 
-        "MAHABANK.NS", "PSB.NS"
+        "IOB.NS", "INDIANB.NS", "UCOBANK.NS", "CENTRALBK.NS", "BANKINDIA.NS", "MAHABANK.NS"
     ],
     "Financial Services & NBFC": [
         "BAJFINANCE.NS", "BAJAJFINSV.NS", "CHOLAFIN.NS", "MUTHOOTFIN.NS", "SBICARD.NS", 
         "SHRIRAMFIN.NS", "REC.NS", "PFC.NS", "MANAPPURAM.NS", "M&MFIN.NS", 
-        "LICHSGFIN.NS", "HUDCO.NS", "IREDA.NS", "CHOLAHLDNG.NS", "NIACL.NS", 
-        "GICRE.NS", "POLICYBZR.NS", "MUTHOOTMF.NS", "POONAWALLA.NS", "SUNDARMFIN.NS", 
-        "CANFINHOME.NS", "AAVAS.NS", "HOMEFIRST.NS", "CREDITACC.NS", "MASFIN.NS", 
-        "SBFC.NS", "UTIAMC.NS", "HDFCAMC.NS", "NAM-INDIA.NS", "ANGELONE.NS", 
-        "MCX.NS", "BSE.NS", "CDSL.NS", "IEX.NS", "MOTILOSAL.NS", "ICICIGI.NS", 
-        "ICICIPRULI.NS", "SBILIFE.NS", "HDFCLIFE.NS", "STARHEALTH.NS", "NYKAA.NS"
+        "LICHSGFIN.NS", "HUDCO.NS", "IREDA.NS", "POLICYBZR.NS", "ANGELONE.NS", "MCX.NS", "BSE.NS", "CDSL.NS", "IEX.NS"
     ],
     "Automobile & Auto Ancillary": [
         "TATAMOTORS.NS", "M&M.NS", "MARUTI.NS", "BAJAJ-AUTO.NS", "HEROMOTOCO.NS", 
         "EICHERMOT.NS", "TVSMOTOR.NS", "ASHOKLEY.NS", "BHARATFORG.NS", "MOTHERSON.NS", 
-        "BOSCHLTD.NS", "MRF.NS", "BALKRISIND.NS", "TIINDIA.NS", "ENDURANCE.NS", 
-        "UNOMINDA.NS", "SONACOMS.NS", "EXIDEIND.NS", "AMARAJABAT.NS", "FORCEMOT.NS", 
-        "SMLISUZU.NS", "ATULAUTO.NS", "JKTYRE.NS", "CEATLTD.NS", "APOLLOTYRE.NS", 
-        "MAHSCOOTER.NS", "SUBROS.NS", "FIEMIND.NS", "GARFIBRES.NS"
+        "BOSCHLTD.NS", "MRF.NS", "BALKRISIND.NS", "SONACOMS.NS", "EXIDEIND.NS", "APOLLOTYRE.NS"
     ],
     "Pharmaceuticals & Biotech": [
         "SUNPHARMA.NS", "DRREDDY.NS", "CIPLA.NS", "APOLLOHOSP.NS", "DIVISLAB.NS", 
         "LUPIN.NS", "ALKEM.NS", "TORNTPHARM.NS", "MANKIND.NS", "ZYDUSLIFE.NS", 
-        "GLENMARK.NS", "GRANULES.NS", "AUROPHARMA.NS", "IPCALAB.NS", "BIOCON.NS", 
-        "AJANTPHARM.NS", "GLAXO.NS", "PFIZER.NS", "SANOFI.NS", "ABBOTINDIA.NS", 
-        "NATCOPHARM.NS", "LAURUSLABS.NS", "JBCHEPHARM.NS", "ERIS.NS", "LALPATHLAB.NS", 
-        "METROPOLIS.NS", "THYROCARE.NS", "POLYMED.NS", "STAR.NS", "FDC.NS"
+        "GLENMARK.NS", "GRANULES.NS", "AUROPHARMA.NS", "IPCALAB.NS", "BIOCON.NS", "LAURUSLABS.NS"
     ],
     "Energy, Oil & Power": [
         "RELIANCE.NS", "ONGC.NS", "BPCL.NS", "IOC.NS", "POWERGRID.NS", 
         "NTPC.NS", "TATAPOWER.NS", "ADANIGREEN.NS", "GAIL.NS", "COALINDIA.NS", 
-        "NHPC.NS", "SJVN.NS", "PETRONET.NS", "OIL.NS", "SUZLON.NS", "INOXWIND.NS", 
-        "ADANIPORTS.NS", "TORNTPOWER.NS", "CESC.NS", "JSWENERGY.NS", "ADANIPOWER.NS", 
-        "WAAREE.NS", "BORORENEW.NS", "IDEAFORGE.NS", "SWANENERGY.NS", "GIPCL.NS", 
-        "RPOWER.NS", "RTNPOWER.NS", "JPPOWER.NS"
+        "NHPC.NS", "SUZLON.NS", "ADANIPORTS.NS", "TORNTPOWER.NS", "JSWENERGY.NS", "ADANIPOWER.NS"
     ],
     "Metal, Mining & Infra": [
         "TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS", "VEDL.NS", "GRASIM.NS", 
         "ADANIENT.NS", "LT.NS", "JINDALSTEL.NS", "NATIONALUM.NS", "NMDC.NS", 
-        "SAIL.NS", "APLAPOLLO.NS", "HINDZINC.NS", "IRB.NS", "KEC.NS", "NCC.NS", 
-        "GMRAIRPORT.NS", "GALLANTT.NS", "JSL.NS", "RATNAMANI.NS", "WELCORP.NS", 
-        "JINDALSAW.NS", "ELECTCAST.NS", "GPIL.NS", "HIL.NS", "GRAVITA.NS", 
-        "MOIL.NS", "KALYANKJIL.NS", "HEG.NS", "GRAPHITE.NS", "SHARDACROP.NS", 
-        "GMRINFRA.NS", "PNCINFRA.NS", "HGINFRA.NS", "GRINFRA.NS", "IRCON.NS", 
-        "RVNL.NS", "NBCC.NS", "RITES.NS", "ITI.NS", "SCI.NS", "COCHINSHIP.NS", 
-        "MAZDOCK.NS", "GRSE.NS", "DATAPATTNS.NS", "PARAS.NS"
+        "SAIL.NS", "HINDZINC.NS", "IRB.NS", "NCC.NS", "HAL.NS", "BEL.NS", "BDL.NS", "COCHINSHIP.NS", "MAZDOCK.NS"
     ],
     "FMCG & Consumer Staples": [
         "HINDUNILVR.NS", "ITC.NS", "NESTLEIND.NS", "BRITANNIA.NS", "TATACONSUM.NS", 
-        "DABUR.NS", "MARICO.NS", "COLPAL.NS", "GODREJCP.NS", "VBL.NS", 
-        "AWL.NS", "PATANJALI.NS", "EMAMI.NS", "RADICO.NS", "UBL.NS", "MCDOWELL-N.NS", 
-        "GILLETTE.NS", "PGHH.NS", "JYOTHYLAB.NS", "BAJAJCON.NS", "VENKEYS.NS", 
-        "AVADHSUGAR.NS", "BALRAMCHIN.NS", "TRIVENI.NS"
+        "DABUR.NS", "MARICO.NS", "COLPAL.NS", "GODREJCP.NS", "VBL.NS", "UBL.NS", "MCDOWELL-N.NS"
     ],
     "Consumer Durables & Retail": [
         "TITAN.NS", "ASIANPAINT.NS", "HAVELLS.NS", "VOLTAS.NS", "WHIRLPOOL.NS", 
-        "DIXON.NS", "CROMPTON.NS", "POLYCAB.NS", "KEI.NS", "BERGEPAINT.NS", 
-        "TRENT.NS", "DMART.NS", "BLUEDART.NS", "AMBER.NS", "BLUESTARCO.NS", 
-        "KAJARIACER.NS", "CERA.NS", "CENTURYPLY.NS", "GREENPANEL.NS", "CAMPUS.NS", 
-        "BATAINDIA.NS", "RELAXO.NS", "PAGEIND.NS", "ABFRL.NS", "VMART.NS"
-    ],
-    "Realty & Infrastructure": [
-        "DLF.NS", "GODREJPROP.NS", "OBEROIRLTY.NS", "PHOENIXLTD.NS", "PRESTIGE.NS", 
-        "LODHA.NS", "NBCC.NS", "GRINFRA.NS", "BRIGADE.NS", "SOBHA.NS", 
-        "MAHLIFE.NS", "ANANTRAJ.NS", "OMAXE.NS", "ASHIANA.NS"
-    ],
-    "Chemicals & Fertilizers": [
-        "UPL.NS", "PIIND.NS", "SRF.NS", "AARTIIND.NS", "COROMANDEL.NS", 
-        "NAVINFLUOR.NS", "DEEPAKNTR.NS", "FACT.NS", "GNFC.NS", "CHAMBLFERT.NS", 
-        "GSFC.NS", "RCF.NS", "TATACHEM.NS", "ALKYLAMINE.NS", "BALAMINES.NS", 
-        "CLEAN.NS", "FINEORG.NS", "FLUOROCHEM.NS", "NEOGEN.NS", "SUDARSCHEM.NS", 
-        "ATUL.NS", "BASF.NS", "NOCIL.NS", "SUMICHEM.NS", "ANUP.NS"
-    ],
-    "Defence & Capital Goods": [
-        "HAL.NS", "BEL.NS", "BDL.NS", "COCHINSHIP.NS", "MAZDOCK.NS", 
-        "SIEMENS.NS", "ABB.NS", "CGPOWER.NS", "BHEL.NS", "THERMAX.NS", 
-        "CUMMINSIND.NS", "ESCORTS.NS", "POLYCAB.NS", "HONAUT.NS", "SCHAEFFLER.NS", 
-        "TIMKEN.NS", "SKFINDIA.NS", "VAIBHAVGBL.NS", "TRIDENT.NS", "KPRMILL.NS", 
-        "WELSPUNLIV.NS", "VARDHACRLC.NS", "LUXIND.NS"
+        "DIXON.NS", "CROMPTON.NS", "POLYCAB.NS", "TRENT.NS", "DMART.NS", "BATAINDIA.NS", "PAGEIND.NS"
     ]
 }
 
+# --- SAFE STOCK FETCHING WITH ERROR HANDLING ---
 def fetch_stock_fast(ticker):
     try:
         tk = yf.Ticker(ticker)
         df = tk.history(period="2d", interval="5m")
         df_daily = tk.history(period="2mo", interval="1d")
 
-        if df is not None and len(df) >= 2 and df_daily is not None and len(df_daily) >= 2:
-            curr_price = df['Close'].iloc[-1]
-            prev_day_close = df_daily['Close'].iloc[-2]
+        if df is not None and not df.empty and len(df) >= 1 and df_daily is not None and not df_daily.empty and len(df_daily) >= 2:
+            curr_price = float(df['Close'].iloc[-1])
+            prev_day_close = float(df_daily['Close'].iloc[-2])
             change_pct = ((curr_price - prev_day_close) / prev_day_close) * 100
             
             today_daily_volume = int(df_daily['Volume'].iloc[-1])
-            sma_vol_20 = df_daily['Volume'].iloc[-21:-1].mean() if len(df_daily) >= 21 else today_daily_volume
+            sma_vol_20 = int(df_daily['Volume'].iloc[-21:-1].mean()) if len(df_daily) >= 21 else today_daily_volume
             vol_surge = True if today_daily_volume > (sma_vol_20 * 3) else False
 
             typical_price = (df['High'] + df['Low'] + df['Close']) / 3
-            vwap = (typical_price * df['Volume']).sum() / df['Volume'].sum() if df['Volume'].sum() > 0 else curr_price
+            vwap = float((typical_price * df['Volume']).sum() / df['Volume'].sum()) if df['Volume'].sum() > 0 else curr_price
             
             intraday_vol = int(df['Volume'].iloc[-1])
-            avg_vol = df['Volume'].mean() if len(df) > 1 else intraday_vol
+            avg_vol = float(df['Volume'].mean()) if len(df) > 1 else float(intraday_vol)
             rvol = round(intraday_vol / avg_vol, 2) if avg_vol > 0 else 1.0
 
             morning = df.between_time("09:15", "09:30")
-            orb_high = morning['High'].max() if not morning.empty else curr_price
-            orb_low = morning['Low'].min() if not morning.empty else curr_price
+            orb_high = float(morning['High'].max()) if not morning.empty else curr_price
+            orb_low = float(morning['Low'].min()) if not morning.empty else curr_price
             
-            # --- 1ST OPENING 5 MIN CANDLE BREAKOUT LOGIC ---
             today_df = df[df.index.date == df.index[-1].date()] if not df.empty else pd.DataFrame()
             if not today_df.empty:
                 first_candle = today_df.iloc[0]
-                first_5m_high = first_candle['High']
-                first_5m_low = first_candle['Low']
+                first_5m_high = float(first_candle['High'])
+                first_5m_low = float(first_candle['Low'])
             else:
                 first_5m_high = curr_price
                 first_5m_low = curr_price
-
-            first_5m_status = "NORMAL"
-            if curr_price > first_5m_high:
-                first_5m_status = "1ST 5M BULLISH BREAKOUT 🚀"
-            elif curr_price < first_5m_low:
-                first_5m_status = "1ST 5M BEARISH BREAKDOWN 🔻"
 
             status = "NORMAL"
             pro_status = "NORMAL"
@@ -476,7 +357,7 @@ def fetch_stock_fast(ticker):
                 "ORB Low": round(orb_low, 2),
                 "First5mHigh": round(first_5m_high, 2),
                 "First5mLow": round(first_5m_low, 2),
-                "First5mStatus": first_5m_status,
+                "First5mStatus": first_5m_status if 'first_5m_status' in locals() else "NORMAL",
                 "Status": status,
                 "ProStatus": pro_status,
                 "Surge930Status": surge_930_status,
@@ -489,7 +370,8 @@ def fetch_stock_fast(ticker):
 @st.cache_data(ttl=15)
 def execute_master_scan(all_tickers_tuple):
     start_t = time.time()
-    with ThreadPoolExecutor(max_workers=100) as executor:
+    # 20 workers lagaye hain taaki Yahoo Finance rate limit (429 error) na aaye aur crash na ho
+    with ThreadPoolExecutor(max_workers=20) as executor:
         results = list(executor.map(fetch_stock_fast, all_tickers_tuple))
     valid = [r for r in results if r is not None]
     exec_time = round((time.time() - start_t) * 1000, 2)
@@ -497,7 +379,6 @@ def execute_master_scan(all_tickers_tuple):
 
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
-    # --- SCAN PRO LOGO INTEGRATION (NO ERROR) ---
     st.markdown("""
         <div style="margin-bottom: 5px;">
             <h1 style="font-size: 40px; font-weight: 900; background: linear-gradient(90deg, #00d2ff, #3a7bd5, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; padding: 0; letter-spacing: 1px;">
@@ -505,7 +386,7 @@ with col_h1:
             </h1>
             <p style="font-size: 14px; color: #38bdf8; font-weight: 800; margin: 0; letter-spacing: 2px;">STOCK MARKET SOLUTIONS</p>
         </div>
-        <span style='font-size: 13px; color: #10b981; font-weight: 700;'>Live Nifty 50 Breadth + Midcap & Smallcap Active Terminal</span>
+        <span style='font-size: 13px; color: #10b981; font-weight: 700;'>Live Market Breadth & Active Terminal</span>
     """, unsafe_allow_html=True)
 
 with col_h2:
@@ -516,7 +397,7 @@ with col_h2:
         </div>
     """, unsafe_allow_html=True)
 
-# --- USER SUBSCRIPTION CHECK & DASHBOARD INTEGRATION (BLUE CIRCLE LOCATION) ---
+# --- USER SUBSCRIPTION CHECK ---
 user_plan, expiry_info = get_user_plan_info(st.session_state.user_email)
 
 col_d1, col_d2, col_d3, col_d4 = st.columns([1.5, 1, 1, 1])
@@ -538,7 +419,7 @@ with col_d2:
     """, unsafe_allow_html=True)
     if st.button("Activate ₹499", key="btn_m"):
         update_user_plan(st.session_state.user_email, "Monthly", 30)
-        st.success("Monthly Plan Activated Successfully!")
+        st.success("Monthly Plan Activated!")
         time.sleep(1)
         st.rerun()
 
@@ -551,7 +432,7 @@ with col_d3:
     """, unsafe_allow_html=True)
     if st.button("Activate ₹4,999", key="btn_a"):
         update_user_plan(st.session_state.user_email, "Annual", 365)
-        st.success("Annual Plan Activated Successfully!")
+        st.success("Annual Plan Activated!")
         time.sleep(1)
         st.rerun()
 
@@ -564,13 +445,12 @@ with col_d4:
     """, unsafe_allow_html=True)
     if st.button("Activate ₹9,999", key="btn_l"):
         update_user_plan(st.session_state.user_email, "Lifetime", 36500)
-        st.success("Lifetime Plan Activated Successfully!")
+        st.success("Lifetime Plan Activated!")
         time.sleep(1)
         st.rerun()
 
 st.markdown("---")
 
-# --- ACCESS CONTROL CHECK ---
 if user_plan == "Free":
     st.warning(f"⚠️ **Account ({st.session_state.user_email}) Status**: Free / No Active Plan.")
     st.info("⚡ Upar dashboard me diye gaye 3 Plans me se koi bhi plan activate karke saare features unlock karein!")
@@ -580,7 +460,7 @@ st.success(f"🔓 **Active Subscription**: {user_plan} Plan | Access Granted.")
 
 all_tickers = list(set([t for sub in SECTOR_MAP.values() for t in sub] + NIFTY_50_TICKERS + FNO_STOCKS))
 
-with st.spinner("⚡ Scanning market data (Midcaps & Smallcaps included)..."):
+with st.spinner("⚡ Scanning market data safely..."):
     master_df, speed_ms = execute_master_scan(tuple(all_tickers))
 
 if master_df.empty or "Symbol" not in master_df.columns:
@@ -588,7 +468,7 @@ if master_df.empty or "Symbol" not in master_df.columns:
 else:
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
 
-    # 3D BOLD TABS
+    # ALL 8 TABS RESTORED SAFELY
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "📌 1. All Sectors", 
         "📂 2. Sector Stocks", 
@@ -602,8 +482,7 @@ else:
 
     # --- TAB 1: ALL SECTORS MATRIX ---
     with tab1:
-        st.caption(f"⚡ Feed Latency: {speed_ms} ms | Monitored Stocks: {len(master_df)} | Auto-Refresh: 30s")
-        
+        st.caption(f"⚡ Feed Latency: {speed_ms} ms | Monitored Stocks: {len(master_df)}")
         sector_summary = []
         for sec, tks in SECTOR_MAP.items():
             clean_tks = [t.replace(".NS", "") for t in tks]
@@ -617,9 +496,7 @@ else:
                     "Gainers": len(sec_df[sec_df["Change (%)"] > 0]),
                     "Losers": len(sec_df[sec_df["Change (%)"] < 0])
                 })
-                
         sec_summary_df = pd.DataFrame(sector_summary).sort_values(by="Avg Change (%)", ascending=False).reset_index(drop=True)
-        
         if not sec_summary_df.empty:
             for i in range(0, len(sec_summary_df), 4):
                 cols = st.columns(4)
@@ -629,7 +506,6 @@ else:
                         avg_val = row["Avg Change (%)"]
                         card_class = "matrix-card-green" if avg_val >= 0 else "matrix-card-red"
                         arrow = "🚀" if avg_val >= 0 else "🔻"
-                        
                         with cols[j]:
                             st.markdown(f"""
                                 <div class="{card_class}">
@@ -644,9 +520,7 @@ else:
         sel_sec = st.selectbox("Select Sector", list(SECTOR_MAP.keys()))
         clean_tks = [t.replace(".NS", "") for t in SECTOR_MAP[sel_sec]]
         stocks_subset = master_df[master_df["Symbol"].isin(clean_tks)].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
-        
         st.write(f"Showing all **{len(stocks_subset)}** stocks in **{sel_sec}**:")
-        
         if not stocks_subset.empty:
             for i in range(0, len(stocks_subset), 4):
                 cols = st.columns(4)
@@ -657,7 +531,6 @@ else:
                         card_cls = "matrix-card-green" if chg_val >= 0 else "matrix-card-red"
                         sym = stk["Symbol"]
                         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
-                        
                         with cols[j]:
                             st.markdown(f"""
                                 <div class="{card_cls}">
@@ -670,9 +543,8 @@ else:
 
     # --- TAB 3: GAINERS & LOSERS ---
     with tab3:
-        st.markdown("### 📊 Complete Market Gainers & Losers (Exact Daily Gain %)")
+        st.markdown("### 📊 Complete Market Gainers & Losers")
         col_g, col_l = st.columns(2)
-        
         with col_g:
             st.markdown("#### 🟢 All Gainers")
             all_gainers = master_df[master_df["Change (%)"] > 0].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
@@ -694,7 +566,6 @@ else:
                                         <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                     </div>
                                 """, unsafe_allow_html=True)
-                
         with col_l:
             st.markdown("#### 🔴 All Losers")
             all_losers = master_df[master_df["Change (%)"] < 0].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
@@ -723,7 +594,6 @@ else:
         clean_fno = [t.replace(".NS", "") for t in FNO_STOCKS]
         fno_df = master_df[master_df["Symbol"].isin(clean_fno)].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         st.write(f"Total F&O Scanned Stocks: **{len(fno_df)}**")
-
         if not fno_df.empty:
             for i in range(0, len(fno_df), 4):
                 cols = st.columns(4)
@@ -734,7 +604,6 @@ else:
                         chg_val = r['Change (%)']
                         card_cls = "matrix-card-green" if chg_val >= 0 else "matrix-card-red"
                         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
-                        
                         with cols[j]:
                             st.markdown(f"""
                                 <div class="{card_cls}">
@@ -833,10 +702,9 @@ else:
                                 </div>
                             """, unsafe_allow_html=True)
 
-    # --- TAB 7: CHARTINK VOLUME SURGE SCANNER & 1ST 5-MIN BREAKOUTS ---
+    # --- TAB 7: CHARTINK VOLUME SURGE SCANNER ---
     with tab7:
         st.markdown("### ⚡ 1st Opening 5-Min Candle Breakout / Breakdown")
-        
         if "First5mStatus" in master_df.columns:
             f5_bull = master_df[master_df["First5mStatus"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
             f5_bear = master_df[master_df["First5mStatus"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
@@ -884,14 +752,12 @@ else:
 
         st.markdown("---")
         st.markdown("### 📊 Chartink Volume Surge Scanner: Daily Vol > (20 SMA Vol * 3)")
-        
         if "VolSurge" in master_df.columns:
             surge_stocks = master_df[master_df["VolSurge"] == True].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         else:
             surge_stocks = pd.DataFrame()
             
         st.write(f"Total Volume Surge Stocks Found: **{len(surge_stocks)}**")
-
         if not surge_stocks.empty:
             for i in range(0, len(surge_stocks), 4):
                 cols = st.columns(4)
@@ -902,7 +768,6 @@ else:
                         chg_val = r['Change (%)']
                         card_cls = "matrix-card-green" if chg_val >= 0 else "matrix-card-red"
                         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
-                        
                         with cols[j]:
                             st.markdown(f"""
                                 <div class="{card_cls}">
@@ -957,6 +822,5 @@ else:
                                 </div>
                             """, unsafe_allow_html=True)
 
-# Strict 30 Seconds Auto Refresh Loop
 time.sleep(30)
 st.rerun()
