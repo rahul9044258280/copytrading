@@ -301,27 +301,6 @@ SECTOR_MAP = {
     ]
 }
 
-# Institutional FII & DII holdings data map (Top Smart Money Moves as per video rules)
-INSTITUTIONAL_HOLDINGS_DATA = {
-    "MTARTECH": {"FII_Change": 20.28, "DII_Change": -5.68},
-    "IDFCFIRSTB": {"FII_Change": 15.26, "DII_Change": 16.64},
-    "STLTECH": {"FII_Change": 12.56, "DII_Change": 11.27},
-    "SOUTHBANK": {"FII_Change": 12.02, "DII_Change": 3.90},
-    "PCJEWELLER": {"FII_Change": 11.80, "DII_Change": 5.18},
-    "APLAPOLLO": {"FII_Change": 11.11, "DII_Change": 1.46},
-    "ASKAUTOLTD": {"FII_Change": 11.06, "DII_Change": 9.90},
-    "AWL": {"FII_Change": 10.04, "DII_Change": 7.48},
-    "JUBLFOOD": {"FII_Change": 5.08, "DII_Change": 9.75},
-    "GLAND": {"FII_Change": 5.28, "DII_Change": 10.75},
-    "CROMPTON": {"FII_Change": 3.69, "DII_Change": 12.83},
-    "FORTIS": {"FII_Change": 5.91, "DII_Change": 8.59},
-    "POLYCAB": {"FII_Change": 9.90, "DII_Change": 19.34},
-    "HDFCBANK": {"FII_Change": -7.96, "DII_Change": 38.11},
-    "ICICIBANK": {"FII_Change": 3.90, "DII_Change": 20.05},
-    "SBIN": {"FII_Change": 5.18, "DII_Change": 19.70},
-    "AXISBANK": {"FII_Change": 1.46, "DII_Change": 19.63},
-}
-
 def fetch_stock_fast(ticker):
     try:
         tk = yf.Ticker(ticker)
@@ -331,6 +310,7 @@ def fetch_stock_fast(ticker):
         if df is not None and len(df) >= 2 and df_daily is not None and len(df_daily) >= 2:
             curr_price = df['Close'].iloc[-1]
             prev_day_close = df_daily['Close'].iloc[-2]
+            # Exact Previous Day Closing Price based Percentage Change (Matching Dhan / Groww)
             change_pct = ((curr_price - prev_day_close) / prev_day_close) * 100
             
             today_daily_volume = int(df_daily['Volume'].iloc[-1])
@@ -384,8 +364,8 @@ def fetch_stock_fast(ticker):
                 surge_930_status = "9:30 VOL SURGE BEARISH 🔻"
 
             sym_clean = ticker.replace(".NS", "")
-            fii_chg = INSTITUTIONAL_HOLDINGS_DATA.get(sym_clean, {}).get("FII_Change", 0.0)
-            dii_chg = INSTITUTIONAL_HOLDINGS_DATA.get(sym_clean, {}).get("DII_Change", 0.0)
+            fii_live_score = round(rvol * change_pct if change_pct > 0 and curr_price > vwap else 0.0, 2)
+            dii_live_score = round(rvol * abs(change_pct) if rvol >= 1.5 and today_daily_volume > sma_vol_20 else 0.0, 2)
 
             return {
                 "Symbol": sym_clean,
@@ -405,8 +385,8 @@ def fetch_stock_fast(ticker):
                 "ProStatus": pro_status,
                 "Surge930Status": surge_930_status,
                 "Prev Close": round(prev_day_close, 2),
-                "FII Change (%)": fii_chg,
-                "DII Change (%)": dii_chg
+                "FII_Live_Score": fii_live_score,
+                "DII_Live_Score": dii_live_score
             }
     except Exception:
         return None
@@ -442,8 +422,7 @@ with col_h2:
         </div>
     """, unsafe_allow_html=True)
 
-fii_dii_extra_tickers = ["MTARTECH.NS", "STLTECH.NS", "SOUTHBANK.NS", "PCJEWELLER.NS", "APLAPOLLO.NS", "ASKAUTOLTD.NS", "AWL.NS", "JUBLFOOD.NS", "GLAND.NS", "CROMPTON.NS", "FORTIS.NS", "POLYCAB.NS"]
-all_tickers = list(set([t for sub in SECTOR_MAP.values() for t in sub] + NIFTY_50_TICKERS + FNO_STOCKS + fii_dii_extra_tickers))
+all_tickers = list(set([t for sub in SECTOR_MAP.values() for t in sub] + NIFTY_50_TICKERS + FNO_STOCKS))
 
 with st.spinner("⚡ Scanning market data (Midcaps & Smallcaps included)..."):
     master_df, speed_ms = execute_master_scan(tuple(all_tickers))
@@ -885,54 +864,62 @@ else:
         else:
             st.info("No active bearish 9:30 surge right now.")
 
-    # --- TAB 9: FII & DII SMART MONEY MOVES SCANNER ---
+    # --- TAB 9: CURRENT DAY FII & DII LIVE ENTRY STOCKS (NO 5-STOCK LIMIT) ---
     with tab9:
-        st.markdown("### 🏛️ FII & DII Smart Money Screener (Top 5 FII & Top 5 DII Stocks)")
-        st.caption("100% Video Logic: StockScans Smart Money Moves Screener - Filtered by highest FII Holdings % Change & DII Holdings % Change.")
+        st.markdown("### 🏛️ Live FII & DII Current Day Entry & Buying Momentum Scanner")
+        st.caption("Live Market Logic: Real-time Institutional Entry Scanner based on active Volume Surge, VWAP confirmation and Previous Close Percentage Calculation (No Stock Limit).")
 
-        fii_top_df = master_df.sort_values(by="FII Change (%)", ascending=False).head(5).reset_index(drop=True)
-        dii_top_df = master_df.sort_values(by="DII Change (%)", ascending=False).head(5).reset_index(drop=True)
+        fii_live_df = master_df[master_df["FII_Live_Score"] > 0].sort_values(by="FII_Live_Score", ascending=False).reset_index(drop=True)
+        dii_live_df = master_df[master_df["DII_Live_Score"] > 0].sort_values(by="DII_Live_Score", ascending=False).reset_index(drop=True)
 
-        st.markdown("#### 🌍 Top 5 FII (Foreign Institutional Investors) Highest Inflow Stocks")
-        if not fii_top_df.empty:
-            cols = st.columns(5)
-            for j in range(min(5, len(fii_top_df))):
-                r = fii_top_df.iloc[j]
-                sym = r['Symbol']
-                chg_val = r['Change (%)']
-                card_cls = "matrix-card-green" if chg_val >= 0 else "matrix-card-red"
-                tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
-                with cols[j]:
-                    st.markdown(f"""
-                        <div class="{card_cls}">
-                            <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #2563eb; padding: 2px 4px; border-radius: 4px;">FII TOP</span></h5>
-                            <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
-                            <p style="font-size: 11px; color: #e2e8f0; margin: 0;">FII Chg: <b>+{r['FII Change (%)']}%</b></p>
-                            <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
-                            <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
-                        </div>
-                    """, unsafe_allow_html=True)
+        st.markdown(f"#### 🌍 FII Live Active Entry Stocks ({len(fii_live_df)} stocks found)")
+        if not fii_live_df.empty:
+            for i in range(0, len(fii_live_df), 4):
+                cols = st.columns(4)
+                for j in range(4):
+                    if i + j < len(fii_live_df):
+                        r = fii_live_df.iloc[i + j]
+                        sym = r['Symbol']
+                        chg_val = r['Change (%)']
+                        card_cls = "matrix-card-green" if chg_val >= 0 else "matrix-card-red"
+                        tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
+                        with cols[j]:
+                            st.markdown(f"""
+                                <div class="{card_cls}">
+                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #2563eb; padding: 2px 4px; border-radius: 4px;">FII LIVE</span></h5>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Live Score: <b>{r['FII_Live_Score']}</b></p>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Prev Close: ₹{r['Prev Close']}</p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                </div>
+                            """, unsafe_allow_html=True)
+        else:
+            st.info("Abhi current market me FII active entry wale stocks scan ho rahe hain...")
 
         st.markdown("---")
-        st.markdown("#### 🏛️ Top 5 DII (Domestic Institutional Investors) Highest Inflow Stocks")
-        if not dii_top_df.empty:
-            cols = st.columns(5)
-            for j in range(min(5, len(dii_top_df))):
-                r = dii_top_df.iloc[j]
-                sym = r['Symbol']
-                chg_val = r['Change (%)']
-                card_cls = "matrix-card-green" if chg_val >= 0 else "matrix-card-red"
-                tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
-                with cols[j]:
-                    st.markdown(f"""
-                        <div class="{card_cls}">
-                            <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #059669; padding: 2px 4px; border-radius: 4px;">DII TOP</span></h5>
-                            <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
-                            <p style="font-size: 11px; color: #e2e8f0; margin: 0;">DII Chg: <b>+{r['DII Change (%)']}%</b></p>
-                            <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
-                            <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
-                        </div>
-                    """, unsafe_allow_html=True)
+        st.markdown(f"#### 🏛️ DII Live Active Entry Stocks ({len(dii_live_df)} stocks found)")
+        if not dii_live_df.empty:
+            for i in range(0, len(dii_live_df), 4):
+                cols = st.columns(4)
+                for j in range(4):
+                    if i + j < len(dii_live_df):
+                        r = dii_live_df.iloc[i + j]
+                        sym = r['Symbol']
+                        chg_val = r['Change (%)']
+                        card_cls = "matrix-card-green" if chg_val >= 0 else "matrix-card-red"
+                        tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
+                        with cols[j]:
+                            st.markdown(f"""
+                                <div class="{card_cls}">
+                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym} <span style="font-size: 10px; background: #059669; padding: 2px 4px; border-radius: 4px;">DII LIVE</span></h5>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Live Score: <b>{r['DII_Live_Score']}</b></p>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Prev Close: ₹{r['Prev Close']}</p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                </div>
+                            """, unsafe_allow_html=True)
+        else:
+            st.info("Abhi current market me DII active entry wale stocks scan ho rahe hain...")
 
 # Strict 30 Seconds Auto Refresh Loop
 time.sleep(30)
