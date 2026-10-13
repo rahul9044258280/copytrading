@@ -3,6 +3,7 @@ import pandas as pd
 import yfinance as yf
 from datetime import datetime, timezone, timedelta
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 # --- IST TIMEZONE (UTC +5:30) ---
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -190,7 +191,7 @@ NIFTY_50_TICKERS = [
     "ONGC.NS", "NESTLEIND.NS", "SHRIRAMFIN.NS", "BEL.NS"
 ]
 
-# --- F&O STOCKS UNIVERSE (TOP DERIVATIVES) ---
+# --- F&O STOCKS UNIVERSE ---
 FNO_STOCKS = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "INFY.NS", "SBIN.NS", "AXISBANK.NS",
     "KOTAKBANK.NS", "BAJFINANCE.NS", "TATAMOTORS.NS", "MARUTI.NS", "M&M.NS", "SUNPHARMA.NS",
@@ -300,121 +301,105 @@ SECTOR_MAP = {
     ]
 }
 
-# --- ULTRA-FAST BATCH DATA DOWNLOADER & EXACT GROWW/DHAN % CALCULATOR ---
-@st.cache_data(ttl=10)
+# --- EXACT GROWW / DHAN UNADJUSTED PRICE & % CALCULATOR ---
+def fetch_single_stock(ticker):
+    try:
+        tk = yf.Ticker(ticker)
+        # Raw unadjusted data fetch to bypass dividend/split alterations
+        df_daily = tk.history(period="10d", interval="1d", auto_adjust=False)
+        df_5m = tk.history(period="2d", interval="5m", auto_adjust=False)
+
+        if df_daily is not None and len(df_daily) >= 2 and df_5m is not None and not df_5m.empty:
+            curr_price = float(df_5m['Close'].iloc[-1])
+            prev_day_close = float(df_daily['Close'].iloc[-2])
+
+            # Exact Groww Formula: % = ((LTP - PrevClose) / PrevClose) * 100
+            change_pct = ((curr_price - prev_day_close) / prev_day_close) * 100
+
+            today_daily_volume = int(df_daily['Volume'].iloc[-1])
+            sma_vol_20 = df_daily['Volume'].mean() if len(df_daily) > 0 else today_daily_volume
+            vol_surge = True if today_daily_volume > (sma_vol_20 * 3) else False
+
+            typical_price = (df_5m['High'] + df_5m['Low'] + df_5m['Close']) / 3
+            vwap = (typical_price * df_5m['Volume']).sum() / df_5m['Volume'].sum() if df_5m['Volume'].sum() > 0 else curr_price
+
+            intraday_vol = int(df_5m['Volume'].iloc[-1])
+            avg_vol = df_5m['Volume'].mean() if len(df_5m) > 1 else intraday_vol
+            rvol = round(intraday_vol / avg_vol, 2) if avg_vol > 0 else 1.0
+
+            morning = df_5m.between_time("09:15", "09:30") if hasattr(df_5m.index, 'between_time') else df_5m.iloc[:3]
+            orb_high = float(morning['High'].max()) if not morning.empty else curr_price
+            orb_low = float(morning['Low'].min()) if not morning.empty else curr_price
+
+            first_candle = df_5m.iloc[0]
+            first_5m_high = float(first_candle['High'])
+            first_5m_low = float(first_candle['Low'])
+
+            first_5m_status = "NORMAL"
+            if curr_price > first_5m_high:
+                first_5m_status = "1ST 5M BULLISH BREAKOUT 🚀"
+            elif curr_price < first_5m_low:
+                first_5m_status = "1ST 5M BEARISH BREAKDOWN 🔻"
+
+            status = "NORMAL"
+            pro_status = "NORMAL"
+            surge_930_status = "NORMAL"
+
+            if curr_price > orb_high:
+                status = "BULLISH BREAKOUT 🚀"
+            elif curr_price < orb_low:
+                status = "BEARISH BREAKDOWN 🔻"
+
+            if curr_price > orb_high and curr_price > vwap and rvol >= 1.3:
+                pro_status = "PRO BULLISH 🚀"
+            elif curr_price < orb_low and curr_price < vwap and rvol >= 1.3:
+                pro_status = "PRO BEARISH 🔻"
+
+            if rvol >= 2.5 and curr_price > orb_high and curr_price > vwap and change_pct >= 1.2:
+                surge_930_status = "9:30 VOL SURGE BULLISH 🚀"
+            elif rvol >= 2.5 and curr_price < orb_low and curr_price < vwap and change_pct <= -1.2:
+                surge_930_status = "9:30 VOL SURGE BEARISH 🔻"
+
+            sym_clean = ticker.replace(".NS", "")
+            fii_live_score = round(rvol * change_pct if change_pct > 0 and curr_price > vwap else 0.0, 2)
+            dii_live_score = round(rvol * abs(change_pct) if rvol >= 1.5 and today_daily_volume > sma_vol_20 else 0.0, 2)
+
+            return {
+                "Symbol": sym_clean,
+                "LTP": round(curr_price, 2),
+                "Change (%)": round(change_pct, 2),
+                "Volume": today_daily_volume,
+                "VolSurge": vol_surge,
+                "SMA_Vol": int(sma_vol_20),
+                "RVol": rvol,
+                "VWAP": round(vwap, 2),
+                "ORB High": round(orb_high, 2),
+                "ORB Low": round(orb_low, 2),
+                "First5mHigh": round(first_5m_high, 2),
+                "First5mLow": round(first_5m_low, 2),
+                "First5mStatus": first_5m_status,
+                "Status": status,
+                "ProStatus": pro_status,
+                "Surge930Status": surge_930_status,
+                "Prev Close": round(prev_day_close, 2),
+                "FII_Live_Score": fii_live_score,
+                "DII_Live_Score": dii_live_score
+            }
+    except Exception:
+        return None
+    return None
+
+@st.cache_data(ttl=15)
 def execute_master_scan(all_tickers_tuple):
     start_t = time.time()
-    tickers_list = list(all_tickers_tuple)
-    
-    # Microsecond fast parallel bulk download
-    data_5m = yf.download(tickers_list, period="2d", interval="5m", group_by='ticker', threads=True, progress=False)
-    data_daily = yf.download(tickers_list, period="1mo", interval="1d", group_by='ticker', threads=True, progress=False)
-    
-    results = []
-    
-    for ticker in tickers_list:
-        try:
-            # Extract DataFrame for single ticker
-            if len(tickers_list) == 1:
-                df = data_5m
-                df_daily = data_daily
-            else:
-                df = data_5m.get(ticker)
-                df_daily = data_daily.get(ticker)
-
-            if df is not None and not df.empty and df_daily is not None and not df_daily.empty:
-                df = df.dropna(subset=['Close'])
-                df_daily = df_daily.dropna(subset=['Close'])
-
-                if len(df) >= 2 and len(df_daily) >= 2:
-                    curr_price = float(df['Close'].iloc[-1])
-                    
-                    # Groww / Dhan Exact Previous Close Calculation
-                    # Prev Close = Last Close of previous daily bar
-                    prev_day_close = float(df_daily['Close'].iloc[-2])
-                    
-                    # Exact Groww 1D Return % Match Formula
-                    change_pct = ((curr_price - prev_day_close) / prev_day_close) * 100
-                    
-                    today_daily_volume = int(df_daily['Volume'].iloc[-1])
-                    sma_vol_20 = df_daily['Volume'].iloc[-21:-1].mean() if len(df_daily) >= 21 else today_daily_volume
-                    vol_surge = True if today_daily_volume > (sma_vol_20 * 3) else False
-
-                    typical_price = (df['High'] + df['Low'] + df['Close']) / 3
-                    vwap = (typical_price * df['Volume']).sum() / df['Volume'].sum() if df['Volume'].sum() > 0 else curr_price
-                    
-                    intraday_vol = int(df['Volume'].iloc[-1])
-                    avg_vol = df['Volume'].mean() if len(df) > 1 else intraday_vol
-                    rvol = round(intraday_vol / avg_vol, 2) if avg_vol > 0 else 1.0
-
-                    morning = df.between_time("09:15", "09:30") if hasattr(df.index, 'between_time') else df.iloc[:3]
-                    orb_high = float(morning['High'].max()) if not morning.empty else curr_price
-                    orb_low = float(morning['Low'].min()) if not morning.empty else curr_price
-                    
-                    # 1ST OPENING 5 MIN CANDLE BREAKOUT LOGIC
-                    first_candle = df.iloc[0]
-                    first_5m_high = float(first_candle['High'])
-                    first_5m_low = float(first_candle['Low'])
-
-                    first_5m_status = "NORMAL"
-                    if curr_price > first_5m_high:
-                        first_5m_status = "1ST 5M BULLISH BREAKOUT 🚀"
-                    elif curr_price < first_5m_low:
-                        first_5m_status = "1ST 5M BEARISH BREAKDOWN 🔻"
-
-                    status = "NORMAL"
-                    pro_status = "NORMAL"
-                    surge_930_status = "NORMAL"
-
-                    if curr_price > orb_high:
-                        status = "BULLISH BREAKOUT 🚀"
-                    elif curr_price < orb_low:
-                        status = "BEARISH BREAKDOWN 🔻"
-
-                    if curr_price > orb_high and curr_price > vwap and rvol >= 1.3:
-                        pro_status = "PRO BULLISH 🚀"
-                    elif curr_price < orb_low and curr_price < vwap and rvol >= 1.3:
-                        pro_status = "PRO BEARISH 🔻"
-
-                    if rvol >= 2.5 and curr_price > orb_high and curr_price > vwap and change_pct >= 1.2:
-                        surge_930_status = "9:30 VOL SURGE BULLISH 🚀"
-                    elif rvol >= 2.5 and curr_price < orb_low and curr_price < vwap and change_pct <= -1.2:
-                        surge_930_status = "9:30 VOL SURGE BEARISH 🔻"
-
-                    sym_clean = ticker.replace(".NS", "")
-                    fii_live_score = round(rvol * change_pct if change_pct > 0 and curr_price > vwap else 0.0, 2)
-                    dii_live_score = round(rvol * abs(change_pct) if rvol >= 1.5 and today_daily_volume > sma_vol_20 else 0.0, 2)
-
-                    results.append({
-                        "Symbol": sym_clean,
-                        "LTP": round(curr_price, 2),
-                        "Change (%)": round(change_pct, 2),
-                        "Volume": today_daily_volume,
-                        "VolSurge": vol_surge,
-                        "SMA_Vol": int(sma_vol_20),
-                        "RVol": rvol,
-                        "VWAP": round(vwap, 2),
-                        "ORB High": round(orb_high, 2),
-                        "ORB Low": round(orb_low, 2),
-                        "First5mHigh": round(first_5m_high, 2),
-                        "First5mLow": round(first_5m_low, 2),
-                        "First5mStatus": first_5m_status,
-                        "Status": status,
-                        "ProStatus": pro_status,
-                        "Surge930Status": surge_930_status,
-                        "Prev Close": round(prev_day_close, 2),
-                        "FII_Live_Score": fii_live_score,
-                        "DII_Live_Score": dii_live_score
-                    })
-        except Exception:
-            continue
-
+    with ThreadPoolExecutor(max_workers=80) as executor:
+        results = list(executor.map(fetch_single_stock, all_tickers_tuple))
+    valid = [r for r in results if r is not None]
     exec_time = round((time.time() - start_t) * 1000, 2)
-    return pd.DataFrame(results), exec_time
+    return pd.DataFrame(valid), exec_time
 
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
-    # --- SCAN PRO LOGO INTEGRATION (NO ERROR) ---
     st.markdown("""
         <div style="margin-bottom: 5px;">
             <h1 style="font-size: 40px; font-weight: 900; background: linear-gradient(90deg, #00d2ff, #3a7bd5, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; padding: 0; letter-spacing: 1px;">
@@ -445,7 +430,6 @@ if not master_df.empty and "Symbol" in master_df.columns:
     n50_green = len(n50_df[n50_df["Change (%)"] > 0])
     n50_red = len(n50_df[n50_df["Change (%)"] < 0])
 
-    # --- 3D BOLD LIVE BREADTH DASHBOARD ---
     st.markdown(f"""
         <div class="nifty-3d-box">
             <div style="text-align: left;">
@@ -476,7 +460,6 @@ if master_df.empty or "Symbol" not in master_df.columns:
 else:
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
 
-    # 3D BOLD TABS
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
         "📌 1. All Sectors", 
         "📂 2. Sector Stocks", 
@@ -875,10 +858,10 @@ else:
         else:
             st.info("No active bearish 9:30 surge right now.")
 
-    # --- TAB 9: CURRENT DAY FII & DII LIVE ENTRY STOCKS (NO 5-STOCK LIMIT) ---
+    # --- TAB 9: CURRENT DAY FII & DII LIVE ENTRY STOCKS ---
     with tab9:
         st.markdown("### 🏛️ Live FII & DII Current Day Entry & Buying Momentum Scanner")
-        st.caption("Live Market Logic: Real-time Institutional Entry Scanner based on active Volume Surge, VWAP confirmation and Previous Close Percentage Calculation (No Stock Limit).")
+        st.caption("Live Market Logic: Real-time Institutional Entry Scanner based on active Volume Surge, VWAP confirmation and Previous Close Percentage Calculation.")
 
         fii_live_df = master_df[master_df["FII_Live_Score"] > 0].sort_values(by="FII_Live_Score", ascending=False).reset_index(drop=True)
         dii_live_df = master_df[master_df["DII_Live_Score"] > 0].sort_values(by="DII_Live_Score", ascending=False).reset_index(drop=True)
