@@ -304,13 +304,25 @@ SECTOR_MAP = {
 def fetch_stock_fast(ticker):
     try:
         tk = yf.Ticker(ticker)
+        
+        # Groww/Dhan accurate real-time price & previous close fetch
+        fast_info = getattr(tk, 'fast_info', None)
         df = tk.history(period="2d", interval="5m")
         df_daily = tk.history(period="2mo", interval="1d")
 
-        if df is not None and len(df) >= 2 and df_daily is not None and len(df_daily) >= 2:
-            curr_price = df['Close'].iloc[-1]
-            prev_day_close = df_daily['Close'].iloc[-2]
-            # Exact Previous Day Closing Price based Percentage Change (Matching Dhan / Groww)
+        if df is not None and not df.empty and df_daily is not None and len(df_daily) >= 2:
+            # Groww/Dhan Exact Price Priority
+            if fast_info and 'lastPrice' in fast_info and fast_info['lastPrice'] is not None:
+                curr_price = float(fast_info['lastPrice'])
+            else:
+                curr_price = float(df['Close'].iloc[-1])
+
+            if fast_info and 'previousClose' in fast_info and fast_info['previousClose'] is not None:
+                prev_day_close = float(fast_info['previousClose'])
+            else:
+                prev_day_close = float(df_daily['Close'].iloc[-2])
+
+            # Exact Previous Day Close Percent Calculation matching Dhan/Groww
             change_pct = ((curr_price - prev_day_close) / prev_day_close) * 100
             
             today_daily_volume = int(df_daily['Volume'].iloc[-1])
