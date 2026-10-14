@@ -277,31 +277,25 @@ SECTOR_MAP = {
     ]
 }
 
-# --- EXACT BROKER / GROWW % MATCH ENGINE ---
+# --- STRICT PREVIOUS CLOSE & REAL MARKET LTP CALCULATION ---
 def fetch_single_stock(ticker):
     try:
         tk = yf.Ticker(ticker)
-        fast_info = getattr(tk, 'fast_info', None)
         df_5m = tk.history(period="2d", interval="5m", auto_adjust=False)
         df_daily = tk.history(period="15d", interval="1d", auto_adjust=False)
         
-        if df_5m is not None and not df_5m.empty:
-            if fast_info and 'lastPrice' in fast_info and fast_info['lastPrice'] is not None:
-                curr_price = float(fast_info['lastPrice'])
-            else:
-                curr_price = float(df_5m['Close'].iloc[-1])
-                
-            if fast_info and 'previousClose' in fast_info and fast_info['previousClose'] is not None:
-                prev_day_close = float(fast_info['previousClose'])
-            elif df_daily is not None and len(df_daily) >= 2:
-                prev_day_close = float(df_daily['Close'].iloc[-2])
-            else:
-                prev_day_close = curr_price
-                
+        if df_5m is not None and not df_5m.empty and df_daily is not None and len(df_daily) >= 2:
+            # Current LTP directly from latest traded 5-Min bar
+            curr_price = float(df_5m['Close'].iloc[-1])
+            
+            # Exact Previous Day Close Price from Daily Historical Data
+            prev_day_close = float(df_daily['Close'].iloc[-2])
+            
+            # Exact Real Market % Change Calculation
             change_pct = ((curr_price - prev_day_close) / prev_day_close) * 100
             
-            today_daily_volume = int(df_daily['Volume'].iloc[-1]) if df_daily is not None and not df_daily.empty else 0
-            sma_vol_20 = df_daily['Volume'].mean() if df_daily is not None and len(df_daily) > 0 else today_daily_volume
+            today_daily_volume = int(df_daily['Volume'].iloc[-1]) if not df_daily.empty else 0
+            sma_vol_20 = df_daily['Volume'].mean() if len(df_daily) > 0 else today_daily_volume
             vol_surge = True if today_daily_volume > (sma_vol_20 * 3) else False
             
             typical_price = (df_5m['High'] + df_5m['Low'] + df_5m['Close']) / 3
