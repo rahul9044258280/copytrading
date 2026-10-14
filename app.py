@@ -1,9 +1,11 @@
 import streamlit as st
 import pandas as pd
-import yfinance as yf
+import os
+import requests
 from datetime import datetime, timezone, timedelta
 import time
 from concurrent.futures import ThreadPoolExecutor
+from itertools import repeat
 
 # --- IST TIMEZONE (UTC +5:30) ---
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -14,7 +16,7 @@ def get_ist_time():
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="SCAN PRO Stock Market Solutions",
-    page_icon="📈",
+    page_icon="ðŸ“ˆ",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -277,120 +279,285 @@ SECTOR_MAP = {
     ]
 }
 
-# --- STRICT PREVIOUS CLOSE & REAL MARKET LTP CALCULATION ---
-def fetch_single_stock(ticker):
+# --- LIVE MARKET DATA: DHAN OFFICIAL API ---
+# TradingView does not provide a public data API for automated scanners. This app uses
+# Dhan's documented market-quote and historical-candle APIs for programmatic calculations,
+# while retaining TradingView chart links throughout the UI for visual cross-checking.
+DHAN_API_BASE = "https://api.dhan.co/v2"
+DHAN_SCRIP_MASTER_URL = "https://images.dhan.co/api-data/api-scrip-master.csv"
+
+
+def get_dhan_credentials():
+    """Read credentials from Streamlit secrets first, then environment variables."""
+    client_id = os.getenv("DHAN_CLIENT_ID", "").strip()
+    access_token = os.getenv("DHAN_ACCESS_TOKEN", "").strip()
     try:
-        tk = yf.Ticker(ticker)
-        df_5m = tk.history(period="2d", interval="5m", auto_adjust=False)
-        df_daily = tk.history(period="15d", interval="1d", auto_adjust=False)
-        
-        if df_5m is not None and not df_5m.empty and df_daily is not None and len(df_daily) >= 2:
-            curr_price = float(df_5m['Close'].iloc[-1])
-            prev_day_close = float(df_daily['Close'].iloc[-2])
-            change_pct = ((curr_price - prev_day_close) / prev_day_close) * 100
-            
-            today_daily_volume = int(df_daily['Volume'].iloc[-1]) if not df_daily.empty else 0
-            sma_vol_20 = df_daily['Volume'].mean() if len(df_daily) > 0 else today_daily_volume
-            vol_surge = True if today_daily_volume > (sma_vol_20 * 3) else False
-            
-            typical_price = (df_5m['High'] + df_5m['Low'] + df_5m['Close']) / 3
-            vwap = (typical_price * df_5m['Volume']).sum() / df_5m['Volume'].sum() if df_5m['Volume'].sum() > 0 else curr_price
-            
-            intraday_vol = int(df_5m['Volume'].iloc[-1])
-            avg_vol = df_5m['Volume'].mean() if len(df_5m) > 1 else intraday_vol
-            rvol = round(intraday_vol / avg_vol, 2) if avg_vol > 0 else 1.0
-            
-            morning = df_5m.between_time("09:15", "09:30") if hasattr(df_5m.index, 'between_time') else df_5m.head(3)
-            orb_high = float(morning['High'].max()) if not morning.empty else curr_price
-            orb_low = float(morning['Low'].min()) if not morning.empty else curr_price
-            
-            today_df = df_5m[df_5m.index.date == df_5m.index[-1].date()] if not df_5m.empty else pd.DataFrame()
-            if not today_df.empty:
-                first_c = today_df.iloc[0]
-                first_5m_high = float(first_c['High'])
-                first_5m_low = float(first_c['Low'])
-            else:
-                first_5m_high = curr_price
-                first_5m_low = curr_price
-                
-            first_5m_status = "NORMAL"
-            if curr_price > first_5m_high:
-                first_5m_status = "1ST 5M BULLISH BREAKOUT"
-            elif curr_price < first_5m_low:
-                first_5m_status = "1ST 5M BEARISH BREAKDOWN"
-                
-            if not today_df.empty and len(today_df) >= 3:
-                first_15m_high = float(today_df['High'].iloc[:3].max())
-                first_15m_low = float(today_df['Low'].iloc[:3].min())
-            else:
-                first_15m_high = curr_price
-                first_15m_low = curr_price
-                
-            first_15m_status = "NORMAL"
-            if curr_price > first_15m_high:
-                first_15m_status = "1ST 15M BULLISH BREAKOUT"
-            elif curr_price < first_15m_low:
-                first_15m_status = "1ST 15M BEARISH BREAKDOWN"
-                
-            status = "NORMAL"
-            pro_status = "NORMAL"
-            surge_930_status = "NORMAL"
-            
+        client_id = str(st.secrets.get("DHAN_CLIENT_ID", client_id)).strip()
+        access_token = str(st.secrets.get("DHAN_ACCESS_TOKEN", access_token)).strip()
+    except Exception:
+        pass
+    return client_id, access_token
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_dhan_instrument_master():
+    """Download and cache Dhan's official scrip master for NSE cash equities."""
+    response = requests.get(DHAN_SCRIP_MASTER_URL, timeout=25)
+    response.raise_for_status()
+    from io import StringIO
+    master = pd.read_csv(StringIO(response.text), low_memory=False)
+    required = {"SEM_EXM_EXCH_ID", "SEM_SEGMENT", "SEM_SMST_SECURITY_ID", "SM_SYMBOL_NAME"}
+    if not required.issubset(set(master.columns)):
+        raise ValueError("Dhan scrip-master columns changed; please update the instrument mapping.")
+    master = master[
+        (master["SEM_EXM_EXCH_ID"].astype(str).str.upper() == "NSE") &
+        (master["SEM_SEGMENT"].astype(str).str.upper() == "E")
+    ].copy()
+    if "SEM_SERIES" in master.columns:
+        master = master[master["SEM_SERIES"].astype(str).str.upper().isin(["EQ", "BE", "BZ", "SM", "ST"])].copy()
+    master["SCAN_SYMBOL"] = master["SM_SYMBOL_NAME"].astype(str).str.strip().str.upper()
+    master["SECURITY_ID"] = master["SEM_SMST_SECURITY_ID"].astype(str).str.replace(r"\.0$", "", regex=True)
+    # Keep the first match per symbol to avoid duplicate series entries.
+    master = master.drop_duplicates(subset=["SCAN_SYMBOL"], keep="first")
+    return master[["SCAN_SYMBOL", "SECURITY_ID"]].to_dict("records")
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def fetch_intraday_bars(security_id, access_token, client_id, cache_bucket):
+    """Fetch today's 5-minute NSE cash candles. cache_bucket rotates once per minute."""
+    now = get_ist_time()
+    start_dt = now.replace(hour=9, minute=15, second=0, microsecond=0)
+    # The API accepts a date-time range; cap it at now so the newest partial candle is handled safely.
+    payload = {
+        "securityId": str(security_id),
+        "exchangeSegment": "NSE_EQ",
+        "instrument": "EQUITY",
+        "interval": "5",
+        "oi": False,
+        "fromDate": start_dt.strftime("%Y-%m-%d %H:%M:%S"),
+        "toDate": now.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    response = requests.post(
+        f"{DHAN_API_BASE}/charts/intraday",
+        headers={"access-token": access_token, "client-id": client_id,
+                 "Accept": "application/json", "Content-Type": "application/json"},
+        json=payload, timeout=15,
+    )
+    response.raise_for_status()
+    raw = response.json()
+    if not raw or not raw.get("timestamp"):
+        return pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
+    frame = pd.DataFrame({
+        "Open": raw.get("open", []), "High": raw.get("high", []),
+        "Low": raw.get("low", []), "Close": raw.get("close", []),
+        "Volume": raw.get("volume", []), "timestamp": raw.get("timestamp", []),
+    })
+    frame["Datetime"] = pd.to_datetime(frame["timestamp"], unit="s", utc=True).dt.tz_convert("Asia/Kolkata")
+    frame = frame.drop(columns=["timestamp"]).set_index("Datetime").sort_index()
+    frame = frame[~frame.index.duplicated(keep="last")]
+    return frame
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def fetch_daily_bars(security_id, access_token, client_id):
+    """Fetch recent daily candles for previous close/volume baseline calculations."""
+    today = get_ist_time().date()
+    from_date = (today - timedelta(days=60)).strftime("%Y-%m-%d")
+    to_date = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+    payload = {
+        "securityId": str(security_id), "exchangeSegment": "NSE_EQ",
+        "instrument": "EQUITY", "expiryCode": 0, "oi": False,
+        "fromDate": from_date, "toDate": to_date,
+    }
+    response = requests.post(
+        f"{DHAN_API_BASE}/charts/historical",
+        headers={"access-token": access_token, "client-id": client_id,
+                 "Accept": "application/json", "Content-Type": "application/json"},
+        json=payload, timeout=15,
+    )
+    response.raise_for_status()
+    raw = response.json()
+    if not raw or not raw.get("timestamp"):
+        return pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
+    frame = pd.DataFrame({
+        "Open": raw.get("open", []), "High": raw.get("high", []),
+        "Low": raw.get("low", []), "Close": raw.get("close", []),
+        "Volume": raw.get("volume", []), "timestamp": raw.get("timestamp", []),
+    })
+    frame["Datetime"] = pd.to_datetime(frame["timestamp"], unit="s", utc=True).dt.tz_convert("Asia/Kolkata")
+    frame = frame.drop(columns=["timestamp"]).set_index("Datetime").sort_index()
+    return frame[~frame.index.duplicated(keep="last")]
+
+
+def fetch_bulk_quotes(tickers):
+    """Fetch one live Dhan quote snapshot for all mapped NSE cash symbols."""
+    client_id, access_token = get_dhan_credentials()
+    if not client_id or not access_token:
+        return {}, "Dhan API credentials missing. Set DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN in Streamlit secrets or environment variables."
+    try:
+        master_records = load_dhan_instrument_master()
+        master_df = pd.DataFrame(master_records)
+        if master_df.empty:
+            return {}, "Dhan instrument master is empty."
+        wanted = {str(t).replace(".NS", "").upper() for t in tickers}
+        mapped = master_df[master_df["SCAN_SYMBOL"].isin(wanted)].copy()
+        if mapped.empty:
+            return {}, "No requested tickers could be mapped to Dhan NSE cash security IDs."
+        ids = mapped["SECURITY_ID"].astype(str).tolist()
+        quote_map = {}
+        # Dhan allows up to 1,000 instruments per quote request.
+        for offset in range(0, len(ids), 1000):
+            batch = mapped.iloc[offset:offset + 1000]
+            payload = {"NSE_EQ": [int(x) for x in batch["SECURITY_ID"].tolist()]}
+            response = requests.post(
+                f"{DHAN_API_BASE}/marketfeed/quote",
+                headers={"access-token": access_token, "client-id": client_id,
+                         "Accept": "application/json", "Content-Type": "application/json"},
+                json=payload, timeout=20,
+            )
+            response.raise_for_status()
+            body = response.json()
+            if str(body.get("status", "")).lower() not in ("success", "" ):
+                raise RuntimeError(body.get("remarks") or body.get("message") or "Dhan quote API returned an error")
+            data = body.get("data", {}).get("NSE_EQ", {})
+            for row in batch.to_dict("records"):
+                sid = str(row["SECURITY_ID"])
+                quote = data.get(sid) or data.get(str(int(sid)))
+                if quote:
+                    quote_map[row["SCAN_SYMBOL"]] = {
+                        "security_id": sid,
+                        "last_price": quote.get("last_price"),
+                        "ohlc": quote.get("ohlc", {}) or {},
+                        "volume": quote.get("volume", 0),
+                        "average_price": quote.get("average_price", 0),
+                        "net_change": quote.get("net_change", 0),
+                        "last_trade_time": quote.get("last_trade_time"),
+                    }
+        return quote_map, None
+    except Exception as exc:
+        return {}, f"Dhan market-data error: {type(exc).__name__}: {exc}"
+
+
+# --- STRICT PREVIOUS CLOSE, LIVE LTP & CONSISTENT SCANNER CALCULATIONS ---
+def fetch_single_stock(ticker, quote_map, credentials):
+    try:
+        sym_clean = ticker.replace(".NS", "").upper()
+        quote = quote_map.get(sym_clean)
+        if not quote or quote.get("last_price") in (None, 0, "0"):
+            return None
+        client_id, access_token = credentials
+        curr_price = float(quote["last_price"])
+        prev_day_close = float((quote.get("ohlc") or {}).get("close") or 0)
+        if prev_day_close <= 0:
+            return None
+        # Use broker quote's live LTP and previous-session close, not the last 5-minute candle close.
+        change_pct = ((curr_price - prev_day_close) / prev_day_close) * 100.0
+        today_daily_volume = int(float(quote.get("volume") or 0))
+        avg_price = float(quote.get("average_price") or 0)
+        vwap = avg_price if avg_price > 0 else curr_price
+
+        cache_bucket = int(time.time() // 60)
+        df_5m = fetch_intraday_bars(quote["security_id"], access_token, client_id, cache_bucket)
+        df_daily = fetch_daily_bars(quote["security_id"], access_token, client_id)
+        if df_5m is None or df_5m.empty:
+            return None
+        today = get_ist_time().date()
+        today_df = df_5m[df_5m.index.date == today].copy()
+        if today_df.empty:
+            return None
+
+        # Exclude today's partial daily bar when calculating the 20-session average volume.
+        if df_daily is not None and not df_daily.empty:
+            completed_daily = df_daily[df_daily.index.date < today]
+            recent_volumes = pd.to_numeric(completed_daily["Volume"], errors="coerce").dropna().tail(20)
+            sma_vol_20 = float(recent_volumes.mean()) if not recent_volumes.empty else float(today_daily_volume)
+        else:
+            sma_vol_20 = float(today_daily_volume)
+        vol_surge = bool(sma_vol_20 > 0 and today_daily_volume > sma_vol_20 * 3)
+
+        # Relative volume compares the latest 5-minute bar with earlier 5-minute bars of this session.
+        intraday_vol = float(today_df["Volume"].iloc[-1])
+        previous_bar_volumes = pd.to_numeric(today_df["Volume"].iloc[:-1], errors="coerce").dropna()
+        avg_vol = float(previous_bar_volumes.mean()) if not previous_bar_volumes.empty else intraday_vol
+        rvol = round(intraday_vol / avg_vol, 2) if avg_vol > 0 else 1.0
+
+        # Opening range: candles starting at 09:15, 09:20 and 09:25; available after 09:30.
+        morning = today_df[(today_df.index.time >= datetime.strptime("09:15", "%H:%M").time()) &
+                           (today_df.index.time < datetime.strptime("09:30", "%H:%M").time())]
+        orb_ready = get_ist_time().time() >= datetime.strptime("09:30", "%H:%M").time() and len(morning) >= 3
+        orb_high = float(morning["High"].max()) if not morning.empty else curr_price
+        orb_low = float(morning["Low"].min()) if not morning.empty else curr_price
+
+        first_c = today_df.iloc[0]
+        first_5m_high, first_5m_low = float(first_c["High"]), float(first_c["Low"])
+        first_5m_status = "NORMAL"
+        first_5m_complete = get_ist_time().time() >= datetime.strptime("09:20", "%H:%M").time()
+        if first_5m_complete and curr_price > first_5m_high:
+            first_5m_status = "1ST 5M BULLISH BREAKOUT"
+        elif first_5m_complete and curr_price < first_5m_low:
+            first_5m_status = "1ST 5M BEARISH BREAKDOWN"
+
+        first_15m = today_df[today_df.index.time < datetime.strptime("09:30", "%H:%M").time()].head(3)
+        if not first_15m.empty:
+            first_15m_high = float(first_15m["High"].max())
+            first_15m_low = float(first_15m["Low"].min())
+        else:
+            first_15m_high = curr_price
+            first_15m_low = curr_price
+        first_15m_status = "NORMAL"
+        first_15m_complete = get_ist_time().time() >= datetime.strptime("09:30", "%H:%M").time() and len(first_15m) >= 3
+        if first_15m_complete and curr_price > first_15m_high:
+            first_15m_status = "1ST 15M BULLISH BREAKOUT"
+        elif first_15m_complete and curr_price < first_15m_low:
+            first_15m_status = "1ST 15M BEARISH BREAKDOWN"
+
+        status = "NORMAL" if orb_ready else "WAIT ORB CLOSE"
+        pro_status = "NORMAL" if orb_ready else "WAIT ORB CLOSE"
+        surge_930_status = "NORMAL" if orb_ready else "WAIT ORB CLOSE"
+        if orb_ready:
             if curr_price > orb_high:
                 status = "BULLISH BREAKOUT"
             elif curr_price < orb_low:
                 status = "BEARISH BREAKDOWN"
-                
             if curr_price > orb_high and curr_price > vwap and rvol >= 1.3:
                 pro_status = "PRO BULLISH"
             elif curr_price < orb_low and curr_price < vwap and rvol >= 1.3:
                 pro_status = "PRO BEARISH"
-                
             if rvol >= 2.5 and curr_price > orb_high and curr_price > vwap and change_pct >= 1.2:
                 surge_930_status = "9:30 VOL SURGE BULLISH"
             elif rvol >= 2.5 and curr_price < orb_low and curr_price < vwap and change_pct <= -1.2:
                 surge_930_status = "9:30 VOL SURGE BEARISH"
-                
-            sym_clean = ticker.replace(".NS", "")
-            fii_live_score = round(rvol * change_pct if change_pct > 0 and curr_price > vwap else 0.0, 2)
-            dii_live_score = round(rvol * abs(change_pct) if rvol >= 1.5 and today_daily_volume > sma_vol_20 else 0.0, 2)
-            
-            return {
-                "Symbol": sym_clean,
-                "LTP": round(curr_price, 2),
-                "Change (%)": round(change_pct, 2),
-                "Volume": today_daily_volume,
-                "VolSurge": vol_surge,
-                "SMA_Vol": int(sma_vol_20),
-                "RVol": rvol,
-                "VWAP": round(vwap, 2),
-                "ORB High": round(orb_high, 2),
-                "ORB Low": round(orb_low, 2),
-                "First5mHigh": round(first_5m_high, 2),
-                "First5mLow": round(first_5m_low, 2),
-                "First5mStatus": first_5m_status,
-                "First15mHigh": round(first_15m_high, 2),
-                "First15mLow": round(first_15m_low, 2),
-                "First15mStatus": first_15m_status,
-                "Status": status,
-                "ProStatus": pro_status,
-                "Surge930Status": surge_930_status,
-                "Prev Close": round(prev_day_close, 2),
-                "FII_Live_Score": fii_live_score,
-                "DII_Live_Score": dii_live_score
-            }
+
+        fii_live_score = round(rvol * change_pct if change_pct > 0 and curr_price > vwap else 0.0, 2)
+        dii_live_score = round(rvol * abs(change_pct) if rvol >= 1.5 and sma_vol_20 > 0 and today_daily_volume > sma_vol_20 else 0.0, 2)
+        return {
+            "Symbol": sym_clean, "LTP": round(curr_price, 2), "Change (%)": round(change_pct, 2),
+            "Volume": today_daily_volume, "VolSurge": vol_surge, "SMA_Vol": int(sma_vol_20),
+            "RVol": rvol, "VWAP": round(vwap, 2), "ORB High": round(orb_high, 2),
+            "ORB Low": round(orb_low, 2), "First5mHigh": round(first_5m_high, 2),
+            "First5mLow": round(first_5m_low, 2), "First5mStatus": first_5m_status,
+            "First15mHigh": round(first_15m_high, 2), "First15mLow": round(first_15m_low, 2),
+            "First15mStatus": first_15m_status, "Status": status, "ProStatus": pro_status,
+            "Surge930Status": surge_930_status, "Prev Close": round(prev_day_close, 2),
+            "FII_Live_Score": fii_live_score, "DII_Live_Score": dii_live_score,
+        }
     except Exception:
         return None
-    return None
 
-@st.cache_data(ttl=15)
+
+@st.cache_data(ttl=10, show_spinner=False)
 def execute_master_scan(all_tickers_tuple):
     start_t = time.time()
-    with ThreadPoolExecutor(max_workers=100) as executor:
-        results = list(executor.map(fetch_single_stock, all_tickers_tuple))
+    quote_map, quote_error = fetch_bulk_quotes(all_tickers_tuple)
+    if quote_error:
+        return pd.DataFrame(), round((time.time() - start_t) * 1000, 2), quote_error
+    client_id, access_token = get_dhan_credentials()
+    with ThreadPoolExecutor(max_workers=12) as executor:
+        results = list(executor.map(fetch_single_stock, all_tickers_tuple,
+                                    repeat(quote_map), repeat((client_id, access_token))))
     valid = [r for r in results if r is not None]
     exec_time = round((time.time() - start_t) * 1000, 2)
-    return pd.DataFrame(valid), exec_time
+    return pd.DataFrame(valid), exec_time, None
 
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
@@ -399,7 +566,7 @@ with col_h1:
         <h1 style="font-size: 40px; font-weight: 900; background: linear-gradient(90deg, #00d2ff, #3a7bd5, #0072ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;">SCAN PRO</h1>
         <p style="font-size: 14px; color: #38bdf8; font-weight: 800; margin: 0; letter-spacing: 2px;">STOCK MARKET SOLUTIONS (LIVE TERMINAL)</p>
     </div>
-    <span style='font-size: 13px; color: #10b981; font-weight: 700;'>⚡ Live Nifty 50 Breadth + Midcap & Smallcap Matrix</span>
+    <span style='font-size: 13px; color: #10b981; font-weight: 700;'>âš¡ Live Nifty 50 Breadth + Midcap & Smallcap Matrix</span>
     """, unsafe_allow_html=True)
 
 with col_h2:
@@ -412,8 +579,8 @@ with col_h2:
 
 all_tickers = list(set([t for sub in SECTOR_MAP.values() for t in sub] + NIFTY_50_TICKERS + FNO_STOCKS))
 
-with st.spinner("⚡ Scanning market data (Microsecond speed)..."):
-    master_df, speed_ms = execute_master_scan(tuple(all_tickers))
+with st.spinner("âš¡ Scanning market data (Microsecond speed)..."):
+    master_df, speed_ms, scan_error = execute_master_scan(tuple(all_tickers))
 
 if not master_df.empty and "Symbol" in master_df.columns:
     clean_n50_symbols = [t.replace(".NS", "") for t in NIFTY_50_TICKERS]
@@ -425,8 +592,8 @@ if not master_df.empty and "Symbol" in master_df.columns:
     <div class="nifty-3d-box">
         <div style="text-align: left;">
             <div style="font-weight: 800; font-size: 13px; color: #9ca3af;">NIFTY 50 BREADTH</div>
-            <div style="font-size: 16px; font-weight: 900; color: #10b981;">🟢 {n50_green} Green Stocks</div>
-            <div style="font-size: 16px; font-weight: 900; color: #ef4444;">🔴 {n50_red} Red Stocks</div>
+            <div style="font-size: 16px; font-weight: 900; color: #10b981;">ðŸŸ¢ {n50_green} Green Stocks</div>
+            <div style="font-size: 16px; font-weight: 900; color: #ef4444;">ðŸ”´ {n50_red} Red Stocks</div>
         </div>
         <div class="stat-card-blue">
             <span style="font-size: 11px; color: #93c5fd; font-weight: 700;">TOTAL MONITORED</span><br>
@@ -441,13 +608,20 @@ if not master_df.empty and "Symbol" in master_df.columns:
     </div>
     """, unsafe_allow_html=True)
 
+st.caption("DATA FEED: Dhan official market quote + historical candles | TradingView links are retained for visual cross-checking. LTP/Change are based on Dhan's live quote snapshot.")
 st.markdown("---")
 
 if 'selected_sector_click' not in st.session_state:
     st.session_state.selected_sector_click = list(SECTOR_MAP.keys())[0]
 
 if master_df.empty or "Symbol" not in master_df.columns:
-    st.error("Market data fetch karne me samasya aa rahi hai. Kripya refresh karein.")
+    client_id, access_token = get_dhan_credentials()
+    if scan_error:
+        st.error(scan_error)
+    elif not client_id or not access_token:
+        st.error("Dhan API credentials missing. Add DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN in .streamlit/secrets.toml or environment variables, then restart SCAN PRO.")
+    else:
+        st.error("Dhan market data fetch nahi ho saka ya current-session candles unavailable hain. API token, Data API access, market hours aur internet connection check karke refresh karein.")
 else:
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
     
@@ -488,13 +662,13 @@ else:
                         row = sec_summary_df.iloc[i + j]
                         avg_val = row["Avg Change (%)"]
                         card_class = "matrix-card-green" if avg_val >= 0 else "matrix-card-red"
-                        arrow = "🚀" if avg_val >= 0 else "🔻"
+                        arrow = "ðŸš€" if avg_val >= 0 else "ðŸ”»"
                         with cols[j]:
                             st.markdown(f"""
                             <div class="{card_class}">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{row['Sector']}</h5>
                                 <h3 style="margin: 4px 0; color: #ffffff;">{avg_val:+.2f}% {arrow}</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Stocks: {row['Total']} | 🟢 {row['Gainers']} 🔴 {row['Losers']}</p>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Stocks: {row['Total']} | ðŸŸ¢ {row['Gainers']} ðŸ”´ {row['Losers']}</p>
                             </div>
                             """, unsafe_allow_html=True)
                             if st.button(f"Inspect {row['Sector']}", key=f"s_{row['Sector']}"):
@@ -522,9 +696,9 @@ else:
                             st.markdown(f"""
                             <div class="{card_cls}">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">₹{stk['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
+                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{stk['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {stk['Volume']:,}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
                             </div>
                             """, unsafe_allow_html=True)
 
@@ -548,9 +722,9 @@ else:
                                 st.markdown(f"""
                                 <div class="matrix-card-green">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} (+{r['Change (%)']:+.2f}%)</h3>
+                                    <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} (+{r['Change (%)']:+.2f}%)</h3>
                                     <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
                                 </div>
                                 """, unsafe_allow_html=True)
             else:
@@ -572,9 +746,9 @@ else:
                                 st.markdown(f"""
                                 <div class="matrix-card-red">
                                     <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
                                     <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
                                 </div>
                                 """, unsafe_allow_html=True)
             else:
@@ -600,9 +774,9 @@ else:
                             st.markdown(f"""
                             <div class="{card_cls}">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
+                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -627,9 +801,9 @@ else:
                             st.markdown(f"""
                             <div class="matrix-card-green">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB High: ₹{r['ORB High']}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB High: â‚¹{r['ORB High']}</p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -648,9 +822,9 @@ else:
                             st.markdown(f"""
                             <div class="matrix-card-red">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB Low: ₹{r['ORB Low']}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB Low: â‚¹{r['ORB Low']}</p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -675,9 +849,9 @@ else:
                             st.markdown(f"""
                             <div class="matrix-card-green">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: ₹{r['VWAP']}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: â‚¹{r['VWAP']}</p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -696,9 +870,9 @@ else:
                             st.markdown(f"""
                             <div class="matrix-card-red">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: ₹{r['VWAP']}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: â‚¹{r['VWAP']}</p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -726,9 +900,9 @@ else:
                             st.markdown(f"""
                             <div class="{card_cls}">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
+                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -753,9 +927,9 @@ else:
                             st.markdown(f"""
                             <div class="matrix-card-green">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">RVol: <b>{r['RVol']}x</b></p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -774,9 +948,9 @@ else:
                             st.markdown(f"""
                             <div class="matrix-card-red">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">RVol: <b>{r['RVol']}x</b></p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -788,7 +962,7 @@ else:
         
         # SECTION 1: 5-MIN CANDLE BREAKOUT
         st.markdown("---")
-        st.markdown("#### 1️⃣ Opening 5-Min Candle Breakout / Breakdown Stocks")
+        st.markdown("#### 1ï¸âƒ£ Opening 5-Min Candle Breakout / Breakdown Stocks")
         f5_bull = master_df[master_df["First5mStatus"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         f5_bear = master_df[master_df["First5mStatus"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
         st.write(f"**Bullish 5m Breakouts:** {len(f5_bull)} | **Bearish 5m Breakdowns:** {len(f5_bear)}")
@@ -805,15 +979,15 @@ else:
                             st.markdown(f"""
                             <div class="matrix-card-green">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">1st 5m High: ₹{r['First5mHigh']}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">1st 5m High: â‚¹{r['First5mHigh']}</p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
                             </div>
                             """, unsafe_allow_html=True)
 
         # SECTION 2: 15-MIN CANDLE BREAKOUT
         st.markdown("---")
-        st.markdown("#### 2️⃣ Opening 15-Min Candle Breakout / Breakdown Stocks")
+        st.markdown("#### 2ï¸âƒ£ Opening 15-Min Candle Breakout / Breakdown Stocks")
         f15_bull = master_df[master_df["First15mStatus"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         f15_bear = master_df[master_df["First15mStatus"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
         st.write(f"**Bullish 15m Breakouts:** {len(f15_bull)} | **Bearish 15m Breakdowns:** {len(f15_bear)}")
@@ -830,15 +1004,15 @@ else:
                             st.markdown(f"""
                             <div class="matrix-card-green">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">1st 15m High: ₹{r['First15mHigh']}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">1st 15m High: â‚¹{r['First15mHigh']}</p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
                             </div>
                             """, unsafe_allow_html=True)
 
         # SECTION 3: FII & DII LIVE ENTRY MOMENTUM
         st.markdown("---")
-        st.markdown("#### 3️⃣ FII & DII Live Active Entry Momentum Scanner")
+        st.markdown("#### 3ï¸âƒ£ FII & DII Live Active Entry Momentum Scanner")
         fii_live_df = master_df[master_df["FII_Live_Score"] > 0].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         dii_live_df = master_df[master_df["DII_Live_Score"] > 0].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         st.write(f"**FII Live Stocks:** {len(fii_live_df)} | **DII Live Stocks:** {len(dii_live_df)}")
@@ -857,9 +1031,9 @@ else:
                             st.markdown(f"""
                             <div class="{card_cls}">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
+                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Live Score: <b>{r['FII_Live_Score']}</b></p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
                             </div>
                             """, unsafe_allow_html=True)
 
