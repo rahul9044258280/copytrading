@@ -285,13 +285,8 @@ def fetch_single_stock(ticker):
         df_daily = tk.history(period="15d", interval="1d", auto_adjust=False)
         
         if df_5m is not None and not df_5m.empty and df_daily is not None and len(df_daily) >= 2:
-            # Current LTP directly from latest traded 5-Min bar
             curr_price = float(df_5m['Close'].iloc[-1])
-            
-            # Exact Previous Day Close Price from Daily Historical Data
             prev_day_close = float(df_daily['Close'].iloc[-2])
-            
-            # Exact Real Market % Change Calculation
             change_pct = ((curr_price - prev_day_close) / prev_day_close) * 100
             
             today_daily_volume = int(df_daily['Volume'].iloc[-1]) if not df_daily.empty else 0
