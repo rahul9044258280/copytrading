@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 from datetime import datetime, timezone, timedelta
 import time
+import html
 from concurrent.futures import ThreadPoolExecutor
 from itertools import repeat
 
@@ -15,7 +16,7 @@ def get_ist_time():
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="SCAN PRO Stock Market Solutions",
-    page_icon="ðŸ“ˆ",
+    page_icon="📈",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -351,15 +352,23 @@ def _fetch_one_yahoo_symbol(ticker):
         if valid_close.empty:
             raise ValueError("No valid latest close")
         current_price = valid_close.iloc[-1]
-    previous_close = meta.get("chartPreviousClose") or meta.get("previousClose")
-    if previous_close is None and len(daily["Close"].dropna()) >= 2:
-        previous_close = daily["Close"].dropna().iloc[-2]
-    if not previous_close:
-        raise ValueError("Previous close unavailable")
-
-    # Use the most recent trading session present in the candles. This also works
-    # on weekends, exchange holidays, and after market close (not just today's date).
+    # Use the most recent trading session present in the intraday candles.
+    # This also works on weekends, exchange holidays, and after market close.
     session_date = intraday.index[-1].date()
+
+    # IMPORTANT: derive previous close from the immediately preceding completed
+    # daily candle. Yahoo's chartPreviousClose/previousClose metadata can be stale
+    # or inconsistent with the selected exchange session, causing wrong % change.
+    daily_close = daily["Close"].dropna() if daily is not None and not daily.empty else pd.Series(dtype=float)
+    if not daily_close.empty:
+        previous_sessions = daily_close[daily_close.index.date < session_date]
+        previous_close = float(previous_sessions.iloc[-1]) if not previous_sessions.empty else None
+    else:
+        previous_close = None
+    if previous_close is None:
+        previous_close = meta.get("chartPreviousClose") or meta.get("previousClose")
+    if previous_close is None or float(previous_close) <= 0:
+        raise ValueError("Previous close unavailable")
     session_intraday = intraday[intraday.index.date == session_date].copy()
     if session_intraday.empty:
         raise ValueError("Latest trading-session candles unavailable")
@@ -371,6 +380,7 @@ def _fetch_one_yahoo_symbol(ticker):
     return sym, {
         "last_price": float(current_price),
         "previous_close": float(previous_close),
+        "company_name": meta.get("longName") or meta.get("shortName") or sym,
         "volume": day_volume,
         "intraday": intraday,
         "daily": daily,
@@ -496,7 +506,8 @@ def fetch_single_stock(ticker, quote_map):
         fii_live_score = round(rvol * change_pct if change_pct > 0 and curr_price > vwap else 0.0, 2)
         dii_live_score = round(rvol * abs(change_pct) if rvol >= 1.5 and sma_vol_20 > 0 and today_daily_volume > sma_vol_20 else 0.0, 2)
         return {
-            "Symbol": sym_clean, "LTP": round(curr_price, 2), "Change (%)": round(change_pct, 2),
+            "Symbol": sym_clean, "Name": quote.get("company_name") or sym_clean,
+            "LTP": round(curr_price, 2), "Change (%)": round(change_pct, 2),
             "Volume": today_daily_volume, "VolSurge": vol_surge, "SMA_Vol": int(sma_vol_20),
             "RVol": rvol, "VWAP": round(vwap, 2), "ORB High": round(orb_high, 2),
             "ORB Low": round(orb_low, 2), "First5mHigh": round(first_5m_high, 2),
@@ -530,7 +541,7 @@ with col_h1:
         <h1 style="font-size: 40px; font-weight: 900; background: linear-gradient(90deg, #00d2ff, #3a7bd5, #0072ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;">SCAN PRO</h1>
         <p style="font-size: 14px; color: #38bdf8; font-weight: 800; margin: 0; letter-spacing: 2px;">STOCK MARKET SOLUTIONS (LIVE TERMINAL)</p>
     </div>
-    <span style='font-size: 13px; color: #10b981; font-weight: 700;'>âš¡ Live Nifty 50 Breadth + Midcap & Smallcap Matrix</span>
+    <span style='font-size: 13px; color: #10b981; font-weight: 700;'>⚡ Live Nifty 50 Breadth + Midcap & Smallcap Matrix</span>
     """, unsafe_allow_html=True)
 
 with col_h2:
@@ -543,7 +554,7 @@ with col_h2:
 
 all_tickers = list(set([t for sub in SECTOR_MAP.values() for t in sub] + NIFTY_50_TICKERS + FNO_STOCKS))
 
-with st.spinner("âš¡ Scanning market data (Microsecond speed)..."):
+with st.spinner("⚡ Scanning market data (Microsecond speed)..."):
     master_df, speed_ms, scan_error = execute_master_scan(tuple(all_tickers))
 
 if not master_df.empty and "Symbol" in master_df.columns:
@@ -556,8 +567,8 @@ if not master_df.empty and "Symbol" in master_df.columns:
     <div class="nifty-3d-box">
         <div style="text-align: left;">
             <div style="font-weight: 800; font-size: 13px; color: #9ca3af;">NIFTY 50 BREADTH</div>
-            <div style="font-size: 16px; font-weight: 900; color: #10b981;">ðŸŸ¢ {n50_green} Green Stocks</div>
-            <div style="font-size: 16px; font-weight: 900; color: #ef4444;">ðŸ”´ {n50_red} Red Stocks</div>
+            <div style="font-size: 16px; font-weight: 900; color: #10b981;">🟢 {n50_green} Green Stocks</div>
+            <div style="font-size: 16px; font-weight: 900; color: #ef4444;">🔴 {n50_red} Red Stocks</div>
         </div>
         <div class="stat-card-blue">
             <span style="font-size: 11px; color: #93c5fd; font-weight: 700;">TOTAL MONITORED</span><br>
@@ -572,7 +583,7 @@ if not master_df.empty and "Symbol" in master_df.columns:
     </div>
     """, unsafe_allow_html=True)
 
-st.caption("DATA FEED: Yahoo Finance public quotes + historical candles | TradingView links are retained for visual cross-checking. On weekends/holidays, the latest available trading session is displayed.")
+st.caption("DATA FEED: Yahoo Finance public quotes + historical candles | Change (%) = (LTP - previous completed NSE session close) / previous completed NSE session close × 100. TradingView links are retained for visual cross-checking. On weekends/holidays, the latest available trading session is displayed.")
 st.markdown("---")
 
 if 'selected_sector_click' not in st.session_state:
@@ -623,13 +634,13 @@ else:
                         row = sec_summary_df.iloc[i + j]
                         avg_val = row["Avg Change (%)"]
                         card_class = "matrix-card-green" if avg_val >= 0 else "matrix-card-red"
-                        arrow = "ðŸš€" if avg_val >= 0 else "ðŸ”»"
+                        arrow = "🚀" if avg_val >= 0 else "🔻"
                         with cols[j]:
                             st.markdown(f"""
                             <div class="{card_class}">
                                 <h5 style="margin: 0; color: #fff; font-size: 15px;">{row['Sector']}</h5>
                                 <h3 style="margin: 4px 0; color: #ffffff;">{avg_val:+.2f}% {arrow}</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Stocks: {row['Total']} | ðŸŸ¢ {row['Gainers']} ðŸ”´ {row['Losers']}</p>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Stocks: {row['Total']} | 🟢 {row['Gainers']} 🔴 {row['Losers']}</p>
                             </div>
                             """, unsafe_allow_html=True)
                             if st.button(f"Inspect {row['Sector']}", key=f"s_{row['Sector']}"):
@@ -656,10 +667,10 @@ else:
                         with cols[j]:
                             st.markdown(f"""
                             <div class="{card_cls}">
-                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{stk['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
+                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(stk.get('Name', sym)))}</h5>
+                                <h3 style="margin: 4px 0; color: #fff;">₹{stk['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {stk['Volume']:,}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                             </div>
                             """, unsafe_allow_html=True)
 
@@ -682,10 +693,10 @@ else:
                             with g_cols[j]:
                                 st.markdown(f"""
                                 <div class="matrix-card-green">
-                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} (+{r['Change (%)']:+.2f}%)</h3>
+                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(r.get('Name', sym)))}</h5>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} (+{r['Change (%)']:+.2f}%)</h3>
                                     <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                                 """, unsafe_allow_html=True)
             else:
@@ -706,10 +717,10 @@ else:
                             with l_cols[j]:
                                 st.markdown(f"""
                                 <div class="matrix-card-red">
-                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(r.get('Name', sym)))}</h5>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
                                     <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                                 </div>
                                 """, unsafe_allow_html=True)
             else:
@@ -734,10 +745,10 @@ else:
                         with cols[j]:
                             st.markdown(f"""
                             <div class="{card_cls}">
-                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
+                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(r.get('Name', sym)))}</h5>
+                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -761,10 +772,10 @@ else:
                         with cols[j]:
                             st.markdown(f"""
                             <div class="matrix-card-green">
-                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB High: â‚¹{r['ORB High']}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(r.get('Name', sym)))}</h5>
+                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB High: ₹{r['ORB High']}</p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -782,10 +793,10 @@ else:
                         with cols[j]:
                             st.markdown(f"""
                             <div class="matrix-card-red">
-                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB Low: â‚¹{r['ORB Low']}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(r.get('Name', sym)))}</h5>
+                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">ORB Low: ₹{r['ORB Low']}</p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -809,10 +820,10 @@ else:
                         with cols[j]:
                             st.markdown(f"""
                             <div class="matrix-card-green">
-                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: â‚¹{r['VWAP']}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(r.get('Name', sym)))}</h5>
+                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: ₹{r['VWAP']}</p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -830,10 +841,10 @@ else:
                         with cols[j]:
                             st.markdown(f"""
                             <div class="matrix-card-red">
-                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: â‚¹{r['VWAP']}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(r.get('Name', sym)))}</h5>
+                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">VWAP: ₹{r['VWAP']}</p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -860,10 +871,10 @@ else:
                         with cols[j]:
                             st.markdown(f"""
                             <div class="{card_cls}">
-                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
+                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(r.get('Name', sym)))}</h5>
+                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -887,10 +898,10 @@ else:
                         with cols[j]:
                             st.markdown(f"""
                             <div class="matrix-card-green">
-                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(r.get('Name', sym)))}</h5>
+                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">RVol: <b>{r['RVol']}x</b></p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -908,10 +919,10 @@ else:
                         with cols[j]:
                             st.markdown(f"""
                             <div class="matrix-card-red">
-                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(r.get('Name', sym)))}</h5>
+                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">RVol: <b>{r['RVol']}x</b></p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                             </div>
                             """, unsafe_allow_html=True)
         else:
@@ -923,7 +934,7 @@ else:
         
         # SECTION 1: 5-MIN CANDLE BREAKOUT
         st.markdown("---")
-        st.markdown("#### 1ï¸âƒ£ Opening 5-Min Candle Breakout / Breakdown Stocks")
+        st.markdown("#### 11️⃣ Opening 5-Min Candle Breakout / Breakdown Stocks")
         f5_bull = master_df[master_df["First5mStatus"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         f5_bear = master_df[master_df["First5mStatus"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
         st.write(f"**Bullish 5m Breakouts:** {len(f5_bull)} | **Bearish 5m Breakdowns:** {len(f5_bear)}")
@@ -939,16 +950,16 @@ else:
                         with cols[j]:
                             st.markdown(f"""
                             <div class="matrix-card-green">
-                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">1st 5m High: â‚¹{r['First5mHigh']}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(r.get('Name', sym)))}</h5>
+                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">1st 5m High: ₹{r['First5mHigh']}</p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                             </div>
                             """, unsafe_allow_html=True)
 
         # SECTION 2: 15-MIN CANDLE BREAKOUT
         st.markdown("---")
-        st.markdown("#### 2ï¸âƒ£ Opening 15-Min Candle Breakout / Breakdown Stocks")
+        st.markdown("#### 21️⃣ Opening 15-Min Candle Breakout / Breakdown Stocks")
         f15_bull = master_df[master_df["First15mStatus"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         f15_bear = master_df[master_df["First15mStatus"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
         st.write(f"**Bullish 15m Breakouts:** {len(f15_bull)} | **Bearish 15m Breakdowns:** {len(f15_bear)}")
@@ -964,16 +975,16 @@ else:
                         with cols[j]:
                             st.markdown(f"""
                             <div class="matrix-card-green">
-                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">1st 15m High: â‚¹{r['First15mHigh']}</p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(r.get('Name', sym)))}</h5>
+                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                <p style="font-size: 11px; color: #e2e8f0; margin: 0;">1st 15m High: ₹{r['First15mHigh']}</p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                             </div>
                             """, unsafe_allow_html=True)
 
         # SECTION 3: FII & DII LIVE ENTRY MOMENTUM
         st.markdown("---")
-        st.markdown("#### 3ï¸âƒ£ FII & DII Live Active Entry Momentum Scanner")
+        st.markdown("#### 31️⃣ FII & DII Live Active Entry Momentum Scanner")
         fii_live_df = master_df[master_df["FII_Live_Score"] > 0].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         dii_live_df = master_df[master_df["DII_Live_Score"] > 0].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         st.write(f"**FII Live Stocks:** {len(fii_live_df)} | **DII Live Stocks:** {len(dii_live_df)}")
@@ -991,10 +1002,10 @@ else:
                         with cols[j]:
                             st.markdown(f"""
                             <div class="{card_cls}">
-                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
-                                <h3 style="margin: 4px 0; color: #fff;">â‚¹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
+                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(r.get('Name', sym)))}</h5>
+                                <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Live Score: <b>{r['FII_Live_Score']}</b></p>
-                                <a href="{tv_url}" target="_blank" class="tv-link">ðŸ“ˆ TradingView (5m) â†—</a>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                             </div>
                             """, unsafe_allow_html=True)
 
