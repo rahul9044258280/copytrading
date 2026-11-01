@@ -622,16 +622,17 @@ if master_df.empty or "Symbol" not in master_df.columns:
 else:
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
     
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
         "1. All Sectors",
         "2. Sector Stocks",
         "3. 9:15 Open=Low/High",
-        "4. F&O Stocks",
-        "5. 9:15 ORB",
-        "6. VWAP+RVol",
-        "7. Chartink Vol Surge",
+        "4. Gainers/Losers",
+        "5. F&O Stocks",
+        "6. 9:15 ORB",
+        "7. VWAP+RVol",
         "8. Institutional Vol Surge (9:30 AM)",
-        "9. FII, DII & Breakouts"
+        "9. FII, DII & Breakouts",
+        "10. Chartink Vol Surge"
     ])
     
     # TAB 1: ALL SECTORS MATRIX
@@ -699,6 +700,58 @@ else:
                             </div>
                             """, unsafe_allow_html=True)
 
+    # TAB 4: GAINERS & LOSERS
+    with tab4:
+        st.markdown("### Complete Market Gainers & Losers (Descending Order)")
+        col_g, col_l = st.columns(2)
+        with col_g:
+            st.markdown("#### All Gainers")
+            all_gainers = master_df[master_df["Change (%)"] > 0].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
+            st.write(f"Total Gainers: **{len(all_gainers)}**")
+            if not all_gainers.empty:
+                for i in range(0, len(all_gainers), 2):
+                    g_cols = st.columns(2)
+                    for j in range(2):
+                        if i + j < len(all_gainers):
+                            r = all_gainers.iloc[i + j]
+                            sym = r['Symbol']
+                            tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
+                            with g_cols[j]:
+                                st.markdown(f"""
+                                <div class="matrix-card-green">
+                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} (+{r['Change (%)']:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                </div>
+                                """, unsafe_allow_html=True)
+            else:
+                st.info("No gainers currently.")
+                
+        with col_l:
+            st.markdown("#### All Losers")
+            all_losers = master_df[master_df["Change (%)"] < 0].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
+            st.write(f"Total Losers: **{len(all_losers)}**")
+            if not all_losers.empty:
+                for i in range(0, len(all_losers), 2):
+                    l_cols = st.columns(2)
+                    for j in range(2):
+                        if i + j < len(all_losers):
+                            r = all_losers.iloc[i + j]
+                            sym = r['Symbol']
+                            tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
+                            with l_cols[j]:
+                                st.markdown(f"""
+                                <div class="matrix-card-red">
+                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{sym}</h5>
+                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
+                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
+                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                                </div>
+                                """, unsafe_allow_html=True)
+            else:
+                st.info("No losers currently.")
+
     # TAB 3: 09:15-09:20 OPEN = LOW / OPEN = HIGH SCANNER
     with tab3:
         st.markdown("### 9:15 AM – 9:20 AM Opening 5-Minute Candle Scanner")
@@ -753,8 +806,8 @@ else:
                 open_high_df, "matrix-card-red", "PART 2 — OPEN = HIGH (Bearish Opening Candle)"
             )
 
-    # TAB 4: F&O STOCKS SCANNER
-    with tab4:
+    # TAB 5: F&O STOCKS SCANNER
+    with tab5:
         st.markdown("### Futures & Options (F&O) Active Stocks Scanner")
         clean_fno = [t.replace(".NS", "") for t in FNO_STOCKS]
         fno_df = master_df[master_df["Symbol"].isin(clean_fno)].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
@@ -781,8 +834,8 @@ else:
         else:
             st.info("No F&O stocks currently available.")
 
-    # TAB 5: ORB BREAKOUT
-    with tab5:
+    # TAB 6: ORB BREAKOUT
+    with tab6:
         st.markdown("### Complete 9:15 - 9:30 Opening Range Breakout (Descending Order)")
         orb_bull = master_df[master_df["Status"].str.contains("BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         orb_bear = master_df[master_df["Status"].str.contains("BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
@@ -829,8 +882,8 @@ else:
         else:
             st.info("No active bearish breakdown right now.")
 
-    # TAB 6: VWAP RVOL ORB PRO
-    with tab6:
+    # TAB 7: VWAP RVOL ORB PRO
+    with tab7:
         st.markdown("### Complete Institutional Pro Setups (Descending Order)")
         pro_bull = master_df[master_df["ProStatus"].str.contains("PRO BULLISH")].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         pro_bear = master_df[master_df["ProStatus"].str.contains("PRO BEARISH")].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
@@ -877,8 +930,8 @@ else:
         else:
             st.info("Abhi koi Pro Bearish setup active nahi hai.")
 
-    # TAB 7: CHARTINK VOLUME SURGE SCANNER
-    with tab7:
+    # TAB 10: CHARTINK VOLUME SURGE SCANNER
+    with tab10:
         st.markdown("### Chartink Volume Surge Scanner: Daily Vol > (20 SMA Vol * 3) (Descending)")
         if "VolSurge" in master_df.columns:
             surge_stocks = master_df[master_df["VolSurge"] == True].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
