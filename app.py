@@ -463,13 +463,35 @@ def fetch_single_stock(ticker, quote_map):
         orb_high = float(morning["High"].max()) if not morning.empty else curr_price
         orb_low = float(morning["Low"].min()) if not morning.empty else curr_price
 
-        first_c = today_df.iloc[0]
-        first_5m_high, first_5m_low = float(first_c["High"]), float(first_c["Low"])
+        # Exact NSE opening candle: 09:15-09:20 (5-minute interval).
+        # Do not use the first available candle blindly; verify its timestamp is 09:15.
+        opening_time = datetime.strptime("09:15", "%H:%M").time()
+        opening_rows = today_df[today_df.index.time == opening_time]
+        first_5m_complete = (
+            session_date < get_ist_time().date()
+            or get_ist_time().time() >= datetime.strptime("09:20", "%H:%M").time()
+        )
+        opening_candle_ready = not opening_rows.empty and first_5m_complete
+        if not opening_rows.empty:
+            first_c = opening_rows.iloc[0]
+            first_5m_open = float(first_c["Open"])
+            first_5m_high = float(first_c["High"])
+            first_5m_low = float(first_c["Low"])
+            first_5m_close = float(first_c["Close"])
+            # NSE prices are quoted in paise/tick increments. A 1-paise tolerance
+            # avoids floating-point representation errors without changing the rule.
+            tick_tolerance = 0.01
+            first_5m_open_low = abs(first_5m_open - first_5m_low) <= tick_tolerance
+            first_5m_open_high = abs(first_5m_open - first_5m_high) <= tick_tolerance
+        else:
+            first_5m_open = first_5m_high = first_5m_low = first_5m_close = float("nan")
+            first_5m_open_low = False
+            first_5m_open_high = False
+
         first_5m_status = "NORMAL"
-        first_5m_complete = get_ist_time().time() >= datetime.strptime("09:20", "%H:%M").time()
-        if first_5m_complete and curr_price > first_5m_high:
+        if opening_candle_ready and curr_price > first_5m_high:
             first_5m_status = "1ST 5M BULLISH BREAKOUT"
-        elif first_5m_complete and curr_price < first_5m_low:
+        elif opening_candle_ready and curr_price < first_5m_low:
             first_5m_status = "1ST 5M BEARISH BREAKDOWN"
 
         first_15m = today_df[today_df.index.time < datetime.strptime("09:30", "%H:%M").time()].head(3)
@@ -510,8 +532,11 @@ def fetch_single_stock(ticker, quote_map):
             "LTP": round(curr_price, 2), "Change (%)": round(change_pct, 2),
             "Volume": today_daily_volume, "VolSurge": vol_surge, "SMA_Vol": int(sma_vol_20),
             "RVol": rvol, "VWAP": round(vwap, 2), "ORB High": round(orb_high, 2),
-            "ORB Low": round(orb_low, 2), "First5mHigh": round(first_5m_high, 2),
-            "First5mLow": round(first_5m_low, 2), "First5mStatus": first_5m_status,
+            "ORB Low": round(orb_low, 2), "First5mOpen": first_5m_open,
+            "First5mHigh": first_5m_high, "First5mLow": first_5m_low,
+            "First5mClose": first_5m_close, "First5mOpenLow": first_5m_open_low,
+            "First5mOpenHigh": first_5m_open_high,
+            "First5mCandleReady": opening_candle_ready, "First5mStatus": first_5m_status,
             "First15mHigh": round(first_15m_high, 2), "First15mLow": round(first_15m_low, 2),
             "First15mStatus": first_15m_status, "Status": status, "ProStatus": pro_status,
             "Surge930Status": surge_930_status, "Prev Close": round(prev_day_close, 2),
@@ -600,7 +625,7 @@ else:
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
         "1. All Sectors",
         "2. Sector Stocks",
-        "3. Gainers/Losers",
+        "3. 9:15 Open=Low/High",
         "4. F&O Stocks",
         "5. 9:15 ORB",
         "6. VWAP+RVol",
@@ -674,57 +699,59 @@ else:
                             </div>
                             """, unsafe_allow_html=True)
 
-    # TAB 3: GAINERS & LOSERS
+    # TAB 3: 09:15-09:20 OPEN = LOW / OPEN = HIGH SCANNER
     with tab3:
-        st.markdown("### Complete Market Gainers & Losers (Descending Order)")
-        col_g, col_l = st.columns(2)
-        with col_g:
-            st.markdown("#### All Gainers")
-            all_gainers = master_df[master_df["Change (%)"] > 0].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
-            st.write(f"Total Gainers: **{len(all_gainers)}**")
-            if not all_gainers.empty:
-                for i in range(0, len(all_gainers), 2):
-                    g_cols = st.columns(2)
-                    for j in range(2):
-                        if i + j < len(all_gainers):
-                            r = all_gainers.iloc[i + j]
-                            sym = r['Symbol']
-                            tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
-                            with g_cols[j]:
-                                st.markdown(f"""
-                                <div class="matrix-card-green">
-                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(r.get('Name', sym)))}</h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} (+{r['Change (%)']:+.2f}%)</h3>
-                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
-                                </div>
-                                """, unsafe_allow_html=True)
-            else:
-                st.info("No gainers currently.")
-                
-        with col_l:
-            st.markdown("#### All Losers")
-            all_losers = master_df[master_df["Change (%)"] < 0].sort_values(by="Change (%)", ascending=True).reset_index(drop=True)
-            st.write(f"Total Losers: **{len(all_losers)}**")
-            if not all_losers.empty:
-                for i in range(0, len(all_losers), 2):
-                    l_cols = st.columns(2)
-                    for j in range(2):
-                        if i + j < len(all_losers):
-                            r = all_losers.iloc[i + j]
-                            sym = r['Symbol']
-                            tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval=5"
-                            with l_cols[j]:
-                                st.markdown(f"""
-                                <div class="matrix-card-red">
-                                    <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(r.get('Name', sym)))}</h5>
-                                    <h3 style="margin: 4px 0; color: #fff;">₹{r['LTP']:,.2f} ({r['Change (%)']:+.2f}%)</h3>
-                                    <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {r['Volume']:,}</p>
-                                    <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
-                                </div>
-                                """, unsafe_allow_html=True)
-            else:
-                st.info("No losers currently.")
+        st.markdown("### 9:15 AM – 9:20 AM Opening 5-Minute Candle Scanner")
+        st.caption(
+            "Rule: Sirf exact 09:15 timestamp wali 5-minute candle check hoti hai. "
+            "Open = Low aur Open = High ko 1 paise tolerance ke saath match kiya gaya hai. "
+            "Scanner candle complete hone ke baad (09:20 AM) results dikhata hai."
+        )
+
+        if not master_df.get("First5mCandleReady", pd.Series(False, index=master_df.index)).any():
+            st.info("09:15–09:20 opening candle abhi available/complete nahi hai. 09:20 AM ke baad refresh karein.")
+        else:
+            open_low_df = master_df[
+                (master_df["First5mCandleReady"] == True) &
+                (master_df["First5mOpenLow"] == True)
+            ].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
+            open_high_df = master_df[
+                (master_df["First5mCandleReady"] == True) &
+                (master_df["First5mOpenHigh"] == True)
+            ].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
+
+            def render_opening_candle_cards(data, card_class, label):
+                st.markdown(f"#### {label} ({len(data)} stocks)")
+                if data.empty:
+                    st.info("Is condition mein abhi koi stock nahi mila.")
+                    return
+                for row_start in range(0, len(data), 4):
+                    card_cols = st.columns(4)
+                    for col_idx in range(4):
+                        if row_start + col_idx >= len(data):
+                            continue
+                        stock = data.iloc[row_start + col_idx]
+                        symbol = str(stock["Symbol"])
+                        tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{symbol}&interval=5"
+                        with card_cols[col_idx]:
+                            st.markdown(f"""
+                            <div class="{card_class}">
+                                <h5 style="margin:0;color:#fff;font-size:15px;">{html.escape(str(stock.get('Name', symbol)))}</h5>
+                                <h3 style="margin:5px 0;color:#fff;">₹{float(stock['LTP']):,.2f} ({float(stock['Change (%)']):+.2f}%)</h3>
+                                <p style="font-size:11px;color:#e2e8f0;margin:0;">09:15 Open: ₹{float(stock['First5mOpen']):,.2f}</p>
+                                <p style="font-size:11px;color:#e2e8f0;margin:0;">High: ₹{float(stock['First5mHigh']):,.2f} | Low: ₹{float(stock['First5mLow']):,.2f}</p>
+                                <p style="font-size:11px;color:#e2e8f0;margin:0;">Close: ₹{float(stock['First5mClose']):,.2f}</p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+            render_opening_candle_cards(
+                open_low_df, "matrix-card-green", "PART 1 — OPEN = LOW (Bullish Opening Candle)"
+            )
+            st.markdown("---")
+            render_opening_candle_cards(
+                open_high_df, "matrix-card-red", "PART 2 — OPEN = HIGH (Bearish Opening Candle)"
+            )
 
     # TAB 4: F&O STOCKS SCANNER
     with tab4:
