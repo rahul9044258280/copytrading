@@ -278,88 +278,126 @@ SECTOR_MAP = {
     ]
 }
 
-# --- LIVE MARKET DATA: YAHOO FINANCE PUBLIC CHART DATA ---
-# No broker login, API key, client ID, or access token is required.
-YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart"
+# --- MARKET DATA: PUBLIC YAHOO FINANCE CHART DATA (NO DHAN) ---
+# Public Yahoo chart endpoint; no broker credentials are used.
+YAHOO_CHART_HOSTS = (
+    "https://query1.finance.yahoo.com/v8/finance/chart",
+    "https://query2.finance.yahoo.com/v8/finance/chart",
+)
+YAHOO_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0 Safari/537.36",
+    "Accept": "application/json,text/plain,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def fetch_yahoo_chart(ticker, interval, range_value):
-    """Fetch public Yahoo Finance candles for an NSE-listed symbol."""
-    url = f"{YAHOO_CHART_URL}/{ticker}"
-    response = requests.get(
-        url,
-        params={"interval": interval, "range": range_value, "includePrePost": "false"},
-        headers={"User-Agent": "Mozilla/5.0"},
-        timeout=20,
+    """Fetch public Yahoo candles with host fallback and short retry handling."""
+    last_error = None
+    for host in YAHOO_CHART_HOSTS:
+        url = f"{host}/{ticker}"
+        for attempt in range(2):
+            try:
+                response = requests.get(
+                    url,
+                    params={"interval": interval, "range": range_value, "includePrePost": "false"},
+                    headers=YAHOO_HEADERS,
+                    timeout=18,
+                )
+                if response.status_code in (429, 500, 502, 503, 504):
+                    time.sleep(0.8 * (attempt + 1))
+                    last_error = f"HTTP {response.status_code}"
+                    continue
+                response.raise_for_status()
+                body = response.json()
+                chart = body.get("chart", {})
+                if chart.get("error"):
+                    raise RuntimeError(str(chart["error"]))
+                result = chart.get("result") or []
+                if not result:
+                    return {}, pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
+                item = result[0]
+                timestamps = item.get("timestamp") or []
+                quote = (item.get("indicators", {}).get("quote") or [{}])[0]
+                if not timestamps:
+                    return item.get("meta", {}), pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
+                frame = pd.DataFrame({
+                    "Open": quote.get("open", []), "High": quote.get("high", []),
+                    "Low": quote.get("low", []), "Close": quote.get("close", []),
+                    "Volume": quote.get("volume", []),
+                }, index=pd.to_datetime(timestamps, unit="s", utc=True).tz_convert("Asia/Kolkata"))
+                frame.index.name = "Datetime"
+                frame = frame.dropna(subset=["Open", "High", "Low", "Close"], how="all")
+                frame = frame.sort_index()
+                frame = frame[~frame.index.duplicated(keep="last")]
+                return item.get("meta", {}), frame
+            except Exception as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+                break
+    raise RuntimeError(last_error or "Yahoo Finance request failed")
+
+
+def _fetch_one_yahoo_symbol(ticker):
+    """Download one symbol's intraday and daily history."""
+    sym = str(ticker).replace(".NS", "").upper()
+    meta, intraday = fetch_yahoo_chart(f"{sym}.NS", "5m", "5d")
+    if intraday.empty:
+        raise ValueError("No 5-minute candle history")
+    _, daily = fetch_yahoo_chart(f"{sym}.NS", "1d", "3mo")
+    current_price = meta.get("regularMarketPrice")
+    if current_price is None:
+        valid_close = intraday["Close"].dropna()
+        if valid_close.empty:
+            raise ValueError("No valid latest close")
+        current_price = valid_close.iloc[-1]
+    previous_close = meta.get("chartPreviousClose") or meta.get("previousClose")
+    if previous_close is None and len(daily["Close"].dropna()) >= 2:
+        previous_close = daily["Close"].dropna().iloc[-2]
+    if not previous_close:
+        raise ValueError("Previous close unavailable")
+
+    # Use the most recent trading session present in the candles. This also works
+    # on weekends, exchange holidays, and after market close (not just today's date).
+    session_date = intraday.index[-1].date()
+    session_intraday = intraday[intraday.index.date == session_date].copy()
+    if session_intraday.empty:
+        raise ValueError("Latest trading-session candles unavailable")
+    session_daily = daily[daily.index.date == session_date]
+    day_volume = (
+        float(session_daily["Volume"].fillna(0).iloc[-1])
+        if not session_daily.empty else float(session_intraday["Volume"].fillna(0).sum())
     )
-    response.raise_for_status()
-    body = response.json()
-    result = (body.get("chart", {}).get("result") or [])
-    if not result:
-        return {}, pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
-    item = result[0]
-    timestamps = item.get("timestamp") or []
-    quote = (item.get("indicators", {}).get("quote") or [{}])[0]
-    if not timestamps:
-        return item.get("meta", {}), pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
-    frame = pd.DataFrame({
-        "Open": quote.get("open", []),
-        "High": quote.get("high", []),
-        "Low": quote.get("low", []),
-        "Close": quote.get("close", []),
-        "Volume": quote.get("volume", []),
-    }, index=pd.to_datetime(timestamps, unit="s", utc=True).tz_convert("Asia/Kolkata"))
-    frame.index.name = "Datetime"
-    frame = frame.dropna(subset=["Open", "High", "Low", "Close"], how="all")
-    frame = frame.sort_index()
-    frame = frame[~frame.index.duplicated(keep="last")]
-    return item.get("meta", {}), frame
+    return sym, {
+        "last_price": float(current_price),
+        "previous_close": float(previous_close),
+        "volume": day_volume,
+        "intraday": intraday,
+        "daily": daily,
+        "session_date": session_date,
+    }
 
 
 def fetch_bulk_quotes(tickers):
-    """Fetch public Yahoo Finance quote and candle data for all requested symbols."""
+    """Fetch symbols concurrently; keep successful symbols if some requests fail."""
     quote_map = {}
     errors = []
-    for ticker in tickers:
-        sym = str(ticker).replace(".NS", "").upper()
-        try:
-            meta, intraday = fetch_yahoo_chart(f"{sym}.NS", "5m", "5d")
-            if intraday.empty:
-                errors.append(sym)
-                continue
-            _, daily = fetch_yahoo_chart(f"{sym}.NS", "1d", "3mo")
-            current_price = meta.get("regularMarketPrice")
-            if current_price is None:
-                current_price = intraday["Close"].dropna().iloc[-1]
-            previous_close = meta.get("chartPreviousClose") or meta.get("previousClose")
-            if previous_close is None and len(daily) >= 2:
-                previous_close = daily["Close"].dropna().iloc[-2]
-            if not previous_close:
-                errors.append(sym)
-                continue
-            today = get_ist_time().date()
-            today_intraday = intraday[intraday.index.date == today].copy()
-            if today_intraday.empty:
-                errors.append(sym)
-                continue
-            today_daily = daily[daily.index.date == today]
-            day_volume = (
-                float(today_daily["Volume"].fillna(0).iloc[-1])
-                if not today_daily.empty else float(today_intraday["Volume"].fillna(0).sum())
-            )
-            quote_map[sym] = {
-                "last_price": float(current_price),
-                "previous_close": float(previous_close),
-                "volume": day_volume,
-                "intraday": intraday,
-                "daily": daily,
-            }
-        except Exception:
-            errors.append(sym)
+    # A small worker pool reduces total wait time without flooding Yahoo's endpoint.
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        futures = {pool.submit(_fetch_one_yahoo_symbol, ticker): ticker for ticker in tickers}
+        for future in futures:
+            try:
+                sym, quote = future.result()
+                quote_map[sym] = quote
+            except Exception as exc:
+                errors.append(f"{str(futures[future]).replace('.NS', '')}: {exc}")
     if not quote_map:
-        detail = ", ".join(errors[:8])
-        return {}, f"Yahoo Finance data abhi available nahi hai. Market hours, internet connection ya data-source rate limit check karein. {detail}"
+        detail = "; ".join(errors[:5])
+        return {}, (
+            "Yahoo Finance se koi market data receive nahi hua. Ye Dhan error nahi hai. "
+            "Yahoo public endpoint ne request reject/limit ki ho sakti hai, ya internet/data access unavailable hai. "
+            f"Details: {detail}"
+        )
     return quote_map, None
 
 
@@ -381,8 +419,9 @@ def fetch_single_stock(ticker, quote_map):
         df_daily = quote.get("daily")
         if df_5m is None or df_5m.empty:
             return None
-        today = get_ist_time().date()
-        today_df = df_5m[df_5m.index.date == today].copy()
+        # Select the latest available exchange session, including weekends/holidays.
+        session_date = quote.get("session_date") or df_5m.index[-1].date()
+        today_df = df_5m[df_5m.index.date == session_date].copy()
         if today_df.empty:
             return None
 
@@ -394,7 +433,7 @@ def fetch_single_stock(ticker, quote_map):
 
         # Exclude today's partial daily bar when calculating the 20-session average volume.
         if df_daily is not None and not df_daily.empty:
-            completed_daily = df_daily[df_daily.index.date < today]
+            completed_daily = df_daily[df_daily.index.date < session_date]
             recent_volumes = pd.to_numeric(completed_daily["Volume"], errors="coerce").dropna().tail(20)
             sma_vol_20 = float(recent_volumes.mean()) if not recent_volumes.empty else float(today_daily_volume)
         else:
@@ -533,7 +572,7 @@ if not master_df.empty and "Symbol" in master_df.columns:
     </div>
     """, unsafe_allow_html=True)
 
-st.caption("DATA FEED: Yahoo Finance public market quotes + historical candles | TradingView links are retained for visual cross-checking. LTP/Change are based on the latest available Yahoo Finance quote.")
+st.caption("DATA FEED: Yahoo Finance public quotes + historical candles | TradingView links are retained for visual cross-checking. On weekends/holidays, the latest available trading session is displayed.")
 st.markdown("---")
 
 if 'selected_sector_click' not in st.session_state:
