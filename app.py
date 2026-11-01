@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import os
 import requests
 from datetime import datetime, timezone, timedelta
 import time
@@ -279,192 +278,119 @@ SECTOR_MAP = {
     ]
 }
 
-# --- LIVE MARKET DATA: DHAN OFFICIAL API ---
-# TradingView does not provide a public data API for automated scanners. This app uses
-# Dhan's documented market-quote and historical-candle APIs for programmatic calculations,
-# while retaining TradingView chart links throughout the UI for visual cross-checking.
-DHAN_API_BASE = "https://api.dhan.co/v2"
-DHAN_SCRIP_MASTER_URL = "https://images.dhan.co/api-data/api-scrip-master.csv"
-
-
-def get_dhan_credentials():
-    """Read credentials from Streamlit secrets first, then environment variables."""
-    client_id = os.getenv("DHAN_CLIENT_ID", "").strip()
-    access_token = os.getenv("DHAN_ACCESS_TOKEN", "").strip()
-    try:
-        client_id = str(st.secrets.get("DHAN_CLIENT_ID", client_id)).strip()
-        access_token = str(st.secrets.get("DHAN_ACCESS_TOKEN", access_token)).strip()
-    except Exception:
-        pass
-    return client_id, access_token
-
-
-@st.cache_data(ttl=86400, show_spinner=False)
-def load_dhan_instrument_master():
-    """Download and cache Dhan's official scrip master for NSE cash equities."""
-    response = requests.get(DHAN_SCRIP_MASTER_URL, timeout=25)
-    response.raise_for_status()
-    from io import StringIO
-    master = pd.read_csv(StringIO(response.text), low_memory=False)
-    required = {"SEM_EXM_EXCH_ID", "SEM_SEGMENT", "SEM_SMST_SECURITY_ID", "SM_SYMBOL_NAME"}
-    if not required.issubset(set(master.columns)):
-        raise ValueError("Dhan scrip-master columns changed; please update the instrument mapping.")
-    master = master[
-        (master["SEM_EXM_EXCH_ID"].astype(str).str.upper() == "NSE") &
-        (master["SEM_SEGMENT"].astype(str).str.upper() == "E")
-    ].copy()
-    if "SEM_SERIES" in master.columns:
-        master = master[master["SEM_SERIES"].astype(str).str.upper().isin(["EQ", "BE", "BZ", "SM", "ST"])].copy()
-    master["SCAN_SYMBOL"] = master["SM_SYMBOL_NAME"].astype(str).str.strip().str.upper()
-    master["SECURITY_ID"] = master["SEM_SMST_SECURITY_ID"].astype(str).str.replace(r"\.0$", "", regex=True)
-    # Keep the first match per symbol to avoid duplicate series entries.
-    master = master.drop_duplicates(subset=["SCAN_SYMBOL"], keep="first")
-    return master[["SCAN_SYMBOL", "SECURITY_ID"]].to_dict("records")
+# --- LIVE MARKET DATA: YAHOO FINANCE PUBLIC CHART DATA ---
+# No broker login, API key, client ID, or access token is required.
+YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart"
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def fetch_intraday_bars(security_id, access_token, client_id, cache_bucket):
-    """Fetch today's 5-minute NSE cash candles. cache_bucket rotates once per minute."""
-    now = get_ist_time()
-    start_dt = now.replace(hour=9, minute=15, second=0, microsecond=0)
-    # The API accepts a date-time range; cap it at now so the newest partial candle is handled safely.
-    payload = {
-        "securityId": str(security_id),
-        "exchangeSegment": "NSE_EQ",
-        "instrument": "EQUITY",
-        "interval": "5",
-        "oi": False,
-        "fromDate": start_dt.strftime("%Y-%m-%d %H:%M:%S"),
-        "toDate": now.strftime("%Y-%m-%d %H:%M:%S"),
-    }
-    response = requests.post(
-        f"{DHAN_API_BASE}/charts/intraday",
-        headers={"access-token": access_token, "client-id": client_id,
-                 "Accept": "application/json", "Content-Type": "application/json"},
-        json=payload, timeout=15,
+def fetch_yahoo_chart(ticker, interval, range_value):
+    """Fetch public Yahoo Finance candles for an NSE-listed symbol."""
+    url = f"{YAHOO_CHART_URL}/{ticker}"
+    response = requests.get(
+        url,
+        params={"interval": interval, "range": range_value, "includePrePost": "false"},
+        headers={"User-Agent": "Mozilla/5.0"},
+        timeout=20,
     )
     response.raise_for_status()
-    raw = response.json()
-    if not raw or not raw.get("timestamp"):
-        return pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
+    body = response.json()
+    result = (body.get("chart", {}).get("result") or [])
+    if not result:
+        return {}, pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
+    item = result[0]
+    timestamps = item.get("timestamp") or []
+    quote = (item.get("indicators", {}).get("quote") or [{}])[0]
+    if not timestamps:
+        return item.get("meta", {}), pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
     frame = pd.DataFrame({
-        "Open": raw.get("open", []), "High": raw.get("high", []),
-        "Low": raw.get("low", []), "Close": raw.get("close", []),
-        "Volume": raw.get("volume", []), "timestamp": raw.get("timestamp", []),
-    })
-    frame["Datetime"] = pd.to_datetime(frame["timestamp"], unit="s", utc=True).dt.tz_convert("Asia/Kolkata")
-    frame = frame.drop(columns=["timestamp"]).set_index("Datetime").sort_index()
+        "Open": quote.get("open", []),
+        "High": quote.get("high", []),
+        "Low": quote.get("low", []),
+        "Close": quote.get("close", []),
+        "Volume": quote.get("volume", []),
+    }, index=pd.to_datetime(timestamps, unit="s", utc=True).tz_convert("Asia/Kolkata"))
+    frame.index.name = "Datetime"
+    frame = frame.dropna(subset=["Open", "High", "Low", "Close"], how="all")
+    frame = frame.sort_index()
     frame = frame[~frame.index.duplicated(keep="last")]
-    return frame
-
-
-@st.cache_data(ttl=21600, show_spinner=False)
-def fetch_daily_bars(security_id, access_token, client_id):
-    """Fetch recent daily candles for previous close/volume baseline calculations."""
-    today = get_ist_time().date()
-    from_date = (today - timedelta(days=60)).strftime("%Y-%m-%d")
-    to_date = (today + timedelta(days=1)).strftime("%Y-%m-%d")
-    payload = {
-        "securityId": str(security_id), "exchangeSegment": "NSE_EQ",
-        "instrument": "EQUITY", "expiryCode": 0, "oi": False,
-        "fromDate": from_date, "toDate": to_date,
-    }
-    response = requests.post(
-        f"{DHAN_API_BASE}/charts/historical",
-        headers={"access-token": access_token, "client-id": client_id,
-                 "Accept": "application/json", "Content-Type": "application/json"},
-        json=payload, timeout=15,
-    )
-    response.raise_for_status()
-    raw = response.json()
-    if not raw or not raw.get("timestamp"):
-        return pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
-    frame = pd.DataFrame({
-        "Open": raw.get("open", []), "High": raw.get("high", []),
-        "Low": raw.get("low", []), "Close": raw.get("close", []),
-        "Volume": raw.get("volume", []), "timestamp": raw.get("timestamp", []),
-    })
-    frame["Datetime"] = pd.to_datetime(frame["timestamp"], unit="s", utc=True).dt.tz_convert("Asia/Kolkata")
-    frame = frame.drop(columns=["timestamp"]).set_index("Datetime").sort_index()
-    return frame[~frame.index.duplicated(keep="last")]
+    return item.get("meta", {}), frame
 
 
 def fetch_bulk_quotes(tickers):
-    """Fetch one live Dhan quote snapshot for all mapped NSE cash symbols."""
-    client_id, access_token = get_dhan_credentials()
-    if not client_id or not access_token:
-        return {}, "Dhan API credentials missing. Set DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN in Streamlit secrets or environment variables."
-    try:
-        master_records = load_dhan_instrument_master()
-        master_df = pd.DataFrame(master_records)
-        if master_df.empty:
-            return {}, "Dhan instrument master is empty."
-        wanted = {str(t).replace(".NS", "").upper() for t in tickers}
-        mapped = master_df[master_df["SCAN_SYMBOL"].isin(wanted)].copy()
-        if mapped.empty:
-            return {}, "No requested tickers could be mapped to Dhan NSE cash security IDs."
-        ids = mapped["SECURITY_ID"].astype(str).tolist()
-        quote_map = {}
-        # Dhan allows up to 1,000 instruments per quote request.
-        for offset in range(0, len(ids), 1000):
-            batch = mapped.iloc[offset:offset + 1000]
-            payload = {"NSE_EQ": [int(x) for x in batch["SECURITY_ID"].tolist()]}
-            response = requests.post(
-                f"{DHAN_API_BASE}/marketfeed/quote",
-                headers={"access-token": access_token, "client-id": client_id,
-                         "Accept": "application/json", "Content-Type": "application/json"},
-                json=payload, timeout=20,
+    """Fetch public Yahoo Finance quote and candle data for all requested symbols."""
+    quote_map = {}
+    errors = []
+    for ticker in tickers:
+        sym = str(ticker).replace(".NS", "").upper()
+        try:
+            meta, intraday = fetch_yahoo_chart(f"{sym}.NS", "5m", "5d")
+            if intraday.empty:
+                errors.append(sym)
+                continue
+            _, daily = fetch_yahoo_chart(f"{sym}.NS", "1d", "3mo")
+            current_price = meta.get("regularMarketPrice")
+            if current_price is None:
+                current_price = intraday["Close"].dropna().iloc[-1]
+            previous_close = meta.get("chartPreviousClose") or meta.get("previousClose")
+            if previous_close is None and len(daily) >= 2:
+                previous_close = daily["Close"].dropna().iloc[-2]
+            if not previous_close:
+                errors.append(sym)
+                continue
+            today = get_ist_time().date()
+            today_intraday = intraday[intraday.index.date == today].copy()
+            if today_intraday.empty:
+                errors.append(sym)
+                continue
+            today_daily = daily[daily.index.date == today]
+            day_volume = (
+                float(today_daily["Volume"].fillna(0).iloc[-1])
+                if not today_daily.empty else float(today_intraday["Volume"].fillna(0).sum())
             )
-            response.raise_for_status()
-            body = response.json()
-            if str(body.get("status", "")).lower() not in ("success", "" ):
-                raise RuntimeError(body.get("remarks") or body.get("message") or "Dhan quote API returned an error")
-            data = body.get("data", {}).get("NSE_EQ", {})
-            for row in batch.to_dict("records"):
-                sid = str(row["SECURITY_ID"])
-                quote = data.get(sid) or data.get(str(int(sid)))
-                if quote:
-                    quote_map[row["SCAN_SYMBOL"]] = {
-                        "security_id": sid,
-                        "last_price": quote.get("last_price"),
-                        "ohlc": quote.get("ohlc", {}) or {},
-                        "volume": quote.get("volume", 0),
-                        "average_price": quote.get("average_price", 0),
-                        "net_change": quote.get("net_change", 0),
-                        "last_trade_time": quote.get("last_trade_time"),
-                    }
-        return quote_map, None
-    except Exception as exc:
-        return {}, f"Dhan market-data error: {type(exc).__name__}: {exc}"
+            quote_map[sym] = {
+                "last_price": float(current_price),
+                "previous_close": float(previous_close),
+                "volume": day_volume,
+                "intraday": intraday,
+                "daily": daily,
+            }
+        except Exception:
+            errors.append(sym)
+    if not quote_map:
+        detail = ", ".join(errors[:8])
+        return {}, f"Yahoo Finance data abhi available nahi hai. Market hours, internet connection ya data-source rate limit check karein. {detail}"
+    return quote_map, None
 
 
 # --- STRICT PREVIOUS CLOSE, LIVE LTP & CONSISTENT SCANNER CALCULATIONS ---
-def fetch_single_stock(ticker, quote_map, credentials):
+def fetch_single_stock(ticker, quote_map):
     try:
         sym_clean = ticker.replace(".NS", "").upper()
         quote = quote_map.get(sym_clean)
         if not quote or quote.get("last_price") in (None, 0, "0"):
             return None
-        client_id, access_token = credentials
         curr_price = float(quote["last_price"])
-        prev_day_close = float((quote.get("ohlc") or {}).get("close") or 0)
+        prev_day_close = float(quote.get("previous_close") or 0)
         if prev_day_close <= 0:
             return None
         # Use broker quote's live LTP and previous-session close, not the last 5-minute candle close.
         change_pct = ((curr_price - prev_day_close) / prev_day_close) * 100.0
         today_daily_volume = int(float(quote.get("volume") or 0))
-        avg_price = float(quote.get("average_price") or 0)
-        vwap = avg_price if avg_price > 0 else curr_price
-
-        cache_bucket = int(time.time() // 60)
-        df_5m = fetch_intraday_bars(quote["security_id"], access_token, client_id, cache_bucket)
-        df_daily = fetch_daily_bars(quote["security_id"], access_token, client_id)
+        df_5m = quote.get("intraday")
+        df_daily = quote.get("daily")
         if df_5m is None or df_5m.empty:
             return None
         today = get_ist_time().date()
         today_df = df_5m[df_5m.index.date == today].copy()
         if today_df.empty:
             return None
+
+        # Calculate session VWAP from today's 5-minute candles.
+        typical_price = (today_df["High"] + today_df["Low"] + today_df["Close"]) / 3
+        vwap_volume = pd.to_numeric(today_df["Volume"], errors="coerce").fillna(0)
+        total_vwap_volume = float(vwap_volume.sum())
+        vwap = float((typical_price * vwap_volume).sum() / total_vwap_volume) if total_vwap_volume > 0 else curr_price
 
         # Exclude today's partial daily bar when calculating the 20-session average volume.
         if df_daily is not None and not df_daily.empty:
@@ -551,10 +477,9 @@ def execute_master_scan(all_tickers_tuple):
     quote_map, quote_error = fetch_bulk_quotes(all_tickers_tuple)
     if quote_error:
         return pd.DataFrame(), round((time.time() - start_t) * 1000, 2), quote_error
-    client_id, access_token = get_dhan_credentials()
     with ThreadPoolExecutor(max_workers=12) as executor:
         results = list(executor.map(fetch_single_stock, all_tickers_tuple,
-                                    repeat(quote_map), repeat((client_id, access_token))))
+                                    repeat(quote_map)))
     valid = [r for r in results if r is not None]
     exec_time = round((time.time() - start_t) * 1000, 2)
     return pd.DataFrame(valid), exec_time, None
@@ -608,20 +533,17 @@ if not master_df.empty and "Symbol" in master_df.columns:
     </div>
     """, unsafe_allow_html=True)
 
-st.caption("DATA FEED: Dhan official market quote + historical candles | TradingView links are retained for visual cross-checking. LTP/Change are based on Dhan's live quote snapshot.")
+st.caption("DATA FEED: Yahoo Finance public market quotes + historical candles | TradingView links are retained for visual cross-checking. LTP/Change are based on the latest available Yahoo Finance quote.")
 st.markdown("---")
 
 if 'selected_sector_click' not in st.session_state:
     st.session_state.selected_sector_click = list(SECTOR_MAP.keys())[0]
 
 if master_df.empty or "Symbol" not in master_df.columns:
-    client_id, access_token = get_dhan_credentials()
     if scan_error:
         st.error(scan_error)
-    elif not client_id or not access_token:
-        st.error("Dhan API credentials missing. Add DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN in .streamlit/secrets.toml or environment variables, then restart SCAN PRO.")
     else:
-        st.error("Dhan market data fetch nahi ho saka ya current-session candles unavailable hain. API token, Data API access, market hours aur internet connection check karke refresh karein.")
+        st.error("Market data abhi available nahi hai. Market hours aur internet connection check karke refresh karein.")
 else:
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
     
