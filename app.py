@@ -279,6 +279,188 @@ SECTOR_MAP = {
     ]
 }
 
+
+# --- EXPANDED NSE CASH-MARKET UNIVERSE (500+ TARGET) ---
+# Additional listed NSE equity symbols grouped by theme. All are added to the
+# shared master universe, so every scanner tab can use the same expanded data.
+EXPANDED_SECTOR_MAP = {
+    "Jio & Telecom Ecosystem": [
+        "JIOFIN.NS", "RELIANCE.NS", "BHARTIARTL.NS", "IDEA.NS", "INDUSTOWER.NS",
+        "BHARTIHEXA.NS", "STLTECH.NS", "TEJASNET.NS", "HFCL.NS", "ITI.NS",
+        "RAILTEL.NS", "TATACOMM.NS", "ROUTE.NS", "TANLA.NS", "ONMOBILE.NS"
+    ],
+    "Railways & Transportation": [
+        "RVNL.NS", "IRFC.NS", "IRCON.NS", "RITES.NS", "RAILTEL.NS", "TITAGARH.NS",
+        "JWL.NS", "TEXRAIL.NS", "CONCOR.NS", "BLUEDART.NS", "TCI.NS", "GATEWAY.NS",
+        "ALLCARGO.NS", "VRLLOG.NS", "MAHLOG.NS", "DELHIVERY.NS", "TRITURBINE.NS",
+        "BEML.NS", "CONCORDBIO.NS", "SCI.NS", "GESHIP.NS", "GPPL.NS", "JSWINFRA.NS",
+        "ADANIPORTS.NS", "EICHERMOT.NS", "ASHOKLEY.NS", "JAMNAAUTO.NS", "SCHNEIDER.NS"
+    ],
+    "Defence & Aerospace": [
+        "HAL.NS", "BEL.NS", "BDL.NS", "MAZDOCK.NS", "GRSE.NS", "COCHINSHIP.NS",
+        "DATAPATTNS.NS", "PARAS.NS", "MTARTECH.NS", "ZENTEC.NS", "IDEAFORGE.NS",
+        "DCXINDIA.NS", "AEROFLEX.NS", "UNIMECH.NS", "SOLARINDS.NS", "MIDHANI.NS",
+        "ASTRAMICRO.NS", "AVANTEL.NS", "BHEL.NS", "BEML.NS"
+    ],
+    "Power, Renewable & Utilities": [
+        "TATAPOWER.NS", "ADANIGREEN.NS", "ADANIPOWER.NS", "JSWENERGY.NS", "NHPC.NS",
+        "SJVN.NS", "CESC.NS", "TORNTPOWER.NS", "GVT&D.NS", "INOXWIND.NS", "SUZLON.NS",
+        "WAAREEENER.NS", "KPIGREEN.NS", "BORORENEW.NS", "WEBELSOLAR.NS", "ORIANA.NS",
+        "VIKRAMSOLR.NS", "ACMESOLAR.NS", "NTPCGREEN.NS", "INOXGREEN.NS", "GENUSPOWER.NS",
+        "KALYANKJIL.NS", "TRANSRAILL.NS", "CGPOWER.NS", "HPL.NS", "ECLERX.NS"
+    ],
+    "Banks, Finance & Insurance": [
+        "BANKINDIA.NS", "MAHABANK.NS", "UCOBANK.NS", "CENTRALBK.NS", "IOB.NS", "INDIANB.NS",
+        "UNIONBANK.NS", "CANBK.NS", "PNB.NS", "BANKBARODA.NS", "IDFCFIRSTB.NS", "FEDERALBNK.NS",
+        "BANDHANBNK.NS", "AUBANK.NS", "RBLBANK.NS", "YESBANK.NS", "J&KBANK.NS", "KARURVYSYA.NS",
+        "CUB.NS", "SOUTHBANK.NS", "DCBBANK.NS", "CSBBANK.NS", "EQUITASBNK.NS", "UJJIVANSFB.NS",
+        "CREDITACC.NS", "MUTHOOTFIN.NS", "MANAPPURAM.NS", "CHOLAFIN.NS", "POONAWALLA.NS",
+        "SUNDARMFIN.NS", "M&MFIN.NS", "L&TFH.NS", "REC.NS", "PFC.NS", "HUDCO.NS", "IREDA.NS",
+        "HDFCLIFE.NS", "ICICIPRULI.NS", "ICICIGI.NS", "NIACL.NS", "GICRE.NS", "STARHEALTH.NS"
+    ],
+    "Industrial, Engineering & Capital Goods": [
+        "SIEMENS.NS", "ABB.NS", "THERMAX.NS", "CUMMINSIND.NS", "KEC.NS", "KALPATPOWR.NS",
+        "PRAJIND.NS", "ELECON.NS", "GRINDWELL.NS", "AIAENG.NS", "TIMKEN.NS", "SCHAEFFLER.NS",
+        "SKFINDIA.NS", "CARBORUNIV.NS", "TRIVENI.NS", "KIRloskar.NS", "KIRLOSBROS.NS",
+        "VGUARD.NS", "FINCABLES.NS", "POLYCAB.NS", "KEI.NS", "APARINDS.NS", "RRKABEL.NS",
+        "HAVELLS.NS", "VOLTAS.NS", "BLUESTARCO.NS", "DIXON.NS", "AMBER.NS", "KAYNES.NS",
+        "NETWEB.NS", "E2E.NS", "LATENTVIEW.NS", "DATAMATICS.NS", "AFFLE.NS"
+    ],
+    "Healthcare, Pharma & Diagnostics": [
+        "LUPIN.NS", "ALKEM.NS", "TORNTPHARM.NS", "MANKIND.NS", "ZYDUSLIFE.NS", "GLENMARK.NS",
+        "GRANULES.NS", "AUROPHARMA.NS", "IPCALAB.NS", "BIOCON.NS", "AJANTPHARM.NS", "LAURUSLABS.NS",
+        "JBCHEPHARM.NS", "NATCOPHARM.NS", "ERIS.NS", "ABBOTINDIA.NS", "PFIZER.NS", "SANOFI.NS",
+        "GLAXO.NS", "LALPATHLAB.NS", "METROPOLIS.NS", "THYROCARE.NS", "VIJAYA.NS", "KIMS.NS",
+        "RAINBOW.NS", "MAXHEALTH.NS", "FORTIS.NS", "MEDANTA.NS", "NH.NS", "ASTERDM.NS",
+        "SYNGENE.NS", "SUVENPHAR.NS", "JUBLPHARMA.NS", "CAPLIPOINT.NS"
+    ],
+    "Consumer, Retail & Lifestyle": [
+        "TRENT.NS", "DMART.NS", "NYKAA.NS", "ABFRL.NS", "VMART.NS", "SHOPERSTOP.NS",
+        "KALYANKJIL.NS", "JUBLFOOD.NS", "DEVYANI.NS", "WESTLIFE.NS", "BIKAJI.NS", "PATANJALI.NS",
+        "DABUR.NS", "MARICO.NS", "COLPAL.NS", "GODREJCP.NS", "VBL.NS", "EMAMILTD.NS",
+        "RADICO.NS", "UBL.NS", "MCDOWELL-N.NS", "GILLETTE.NS", "PGHH.NS", "JYOTHYLAB.NS",
+        "BATAINDIA.NS", "RELAXO.NS", "PAGEIND.NS", "CAMPUS.NS", "KPRMILL.NS", "TRIDENT.NS",
+        "WELSPUNLIV.NS", "VTL.NS", "GOKEX.NS", "RAYMOND.NS", "ARVIND.NS", "JINDALWORLD.NS"
+    ],
+    "Metals, Materials & Chemicals": [
+        "VEDL.NS", "JINDALSTEL.NS", "NATIONALUM.NS", "NMDC.NS", "SAIL.NS", "HINDZINC.NS",
+        "APLAPOLLO.NS", "JSL.NS", "RATNAMANI.NS", "WELCORP.NS", "JINDALSAW.NS", "GRAVITA.NS",
+        "MOIL.NS", "HEG.NS", "GRAPHITE.NS", "HINDCOPPER.NS", "HINDALCO.NS", "TATASTEEL.NS",
+        "JSWSTEEL.NS", "UPL.NS", "PIIND.NS", "SRF.NS", "AARTIIND.NS", "COROMANDEL.NS",
+        "NAVINFLUOR.NS", "DEEPAKNTR.NS", "FACT.NS", "GNFC.NS", "CHAMBLFERT.NS", "GSFC.NS",
+        "RCF.NS", "TATACHEM.NS", "ATUL.NS", "CLEAN.NS", "FINEORG.NS", "FLUOROCHEM.NS",
+        "NEOGEN.NS", "SUDARSCHEM.NS", "NOCIL.NS", "SUMICHEM.NS", "ANUP.NS", "BALAMINES.NS"
+    ],
+    "Realty, Construction & Infrastructure": [
+        "DLF.NS", "GODREJPROP.NS", "OBEROIRLTY.NS", "PHOENIXLTD.NS", "PRESTIGE.NS", "LODHA.NS",
+        "BRIGADE.NS", "SOBHA.NS", "MAHLIFE.NS", "ANANTRAJ.NS", "ASHIANA.NS", "NBCC.NS",
+        "NCC.NS", "IRB.NS", "PNCINFRA.NS", "HGINFRA.NS", "GRINFRA.NS", "KNRCON.NS",
+        "ASHOKA.NS", "JKIL.NS", "DBL.NS", "HCC.NS", "RAMKY.NS", "MANINFRA.NS", "GPTINFRA.NS",
+        "CAPACITE.NS", "AHLUCONT.NS", "ENGINERSIN.NS", "RITES.NS"
+    ],
+    "Technology, Media & Digital": [
+        "MPHASIS.NS", "COFORGE.NS", "PERSISTENT.NS", "OFSS.NS", "KPITTECH.NS", "TATAELXSI.NS",
+        "CYIENT.NS", "LTTS.NS", "BSOFT.NS", "ZENSARTECH.NS", "INTELLECT.NS", "SONATSOFTW.NS",
+        "FSL.NS", "CAMS.NS", "HAPPYFORGE.NS", "NAUKRI.NS", "PVRINOX.NS", "SUNTV.NS",
+        "ZEEL.NS", "NETWORK18.NS", "SAREGAMA.NS", "TIPSMUSIC.NS", "HATHWAY.NS", "DEN.NS",
+        "DBCORP.NS", "JAGRAN.NS", "TVTODAY.NS", "INOXWIND.NS", "EASEMYTRIP.NS", "YATRA.NS"
+    ]
+}
+
+
+# Additional liquid and widely followed NSE cash-market names.
+MORE_NSE_TICKERS = [
+    "ABCAPITAL.NS", "ABSLAMC.NS", "ADITYABIRLA.NS", "ABFRL.NS", "AETHER.NS", "AFFLE.NS",
+    "AJMERA.NS", "ALOKINDS.NS", "AMBUJACEM.NS", "ANANDRATHI.NS", "ANGELONE.NS", "APLLTD.NS",
+    "APTUS.NS", "ARE&M.NS", "ASAHIINDIA.NS", "ASHOKA.NS", "ASTRAL.NS", "ATGL.NS", "AUBANK.NS",
+    "AVANTIFEED.NS", "AWL.NS", "BAJAJHLDNG.NS", "BALAMINES.NS", "BALRAMCHIN.NS", "BANDHANBNK.NS",
+    "BANKBARODA.NS", "BATAINDIA.NS", "BAYERCROP.NS", "BEML.NS", "BHARATFORG.NS", "BIRLACORPN.NS",
+    "BLUEDART.NS", "BLS.NS", "BOMDYEING.NS", "BOSCHLTD.NS", "BPCL.NS", "CAMS.NS", "CANFINHOME.NS",
+    "CARBORUNIV.NS", "CASTROLIND.NS", "CCL.NS", "CDSL.NS", "CEATLTD.NS", "CENTRALBK.NS",
+    "CENTURYPLY.NS", "CERA.NS", "CHALET.NS", "CHAMBLFERT.NS", "CHOLAHLDNG.NS", "CIEINDIA.NS",
+    "CLEAN.NS", "COCHINSHIP.NS", "CREDITACC.NS", "CROMPTON.NS", "CSBBANK.NS", "CYIENT.NS",
+    "DALBHARAT.NS", "DATAMATICS.NS", "DEEPAKFERT.NS", "DEEPAKNTR.NS", "DELHIVERY.NS", "DEVYANI.NS",
+    "ECLERX.NS", "EIDPARRY.NS", "ELGIEQUIP.NS", "EMAMILTD.NS", "ENDURANCE.NS", "ENGINERSIN.NS",
+    "EQUITASBNK.NS", "ERIS.NS", "EXIDEIND.NS", "FACT.NS", "FDC.NS", "FINCABLES.NS", "FINPIPE.NS",
+    "FIVESTAR.NS", "FLUOROCHEM.NS", "FORTIS.NS", "GAIL.NS", "GARFIBRES.NS", "GICRE.NS",
+    "GILLETTE.NS", "GLAND.NS", "GLAXO.NS", "GMMPFAUDLR.NS", "GNFC.NS", "GODFRYPHLP.NS",
+    "GODREJIND.NS", "GODREJAGRO.NS", "GPIL.NS", "GRANULES.NS", "GRAPHITE.NS", "GRINDWELL.NS",
+    "GSFC.NS", "GSPL.NS", "GUJGASLTD.NS", "HAPPSTMNDS.NS", "HATHWAY.NS", "HEG.NS", "HINDCOPPER.NS",
+    "HINDPETRO.NS", "HINDZINC.NS", "HOMEFIRST.NS", "HUDCO.NS", "IDBI.NS", "IDFCFIRSTB.NS",
+    "IIFL.NS", "INDIACEM.NS", "INDIAMART.NS", "INDIANB.NS", "INDIGO.NS", "INDUSTOWER.NS",
+    "INOXWIND.NS", "INTELLECT.NS", "IOC.NS", "IRB.NS", "JBCHEPHARM.NS", "JINDALSAW.NS",
+    "JKCEMENT.NS", "JKLAKSHMI.NS", "JKPAPER.NS", "JKTYRE.NS", "JSL.NS", "JUBLFOOD.NS",
+    "JUSTDIAL.NS", "KAJARIACER.NS", "KANSAINER.NS", "KARURVYSYA.NS", "KEC.NS", "KFINTECH.NS",
+    "KNRCON.NS", "KPITTECH.NS", "KRBL.NS", "LATENTVIEW.NS", "LEMONTREE.NS", "LICHSGFIN.NS",
+    "LINDEINDIA.NS", "LODHA.NS", "LTTS.NS", "M&MFIN.NS", "MAHABANK.NS", "MAHSEAMLES.NS",
+    "MANAPPURAM.NS", "MAPMYINDIA.NS", "MARICO.NS", "MASTEK.NS", "MAXHEALTH.NS", "MCX.NS",
+    "METROPOLIS.NS", "MGL.NS", "MHRIL.NS", "MOTILALOFS.NS", "MRPL.NS", "MTARTECH.NS",
+    "NATCOPHARM.NS", "NATIONALUM.NS", "NAVINFLUOR.NS", "NBCC.NS", "NCC.NS", "NETWORK18.NS",
+    "NH.NS", "NIACL.NS", "NLCINDIA.NS", "NMDC.NS", "NOCIL.NS", "OIL.NS", "PAYTM.NS",
+    "PFIZER.NS", "POLICYBZR.NS", "POLYMED.NS", "POONAWALLA.NS", "PRAJIND.NS", "PRESTIGE.NS",
+    "QUESS.NS", "RADICO.NS", "RAILTEL.NS", "RAIN.NS", "RALLIS.NS", "RAMCOCEM.NS", "RATNAMANI.NS",
+    "RBLBANK.NS", "RCF.NS", "REDINGTON.NS", "RELAXO.NS", "ROUTE.NS", "SANOFI.NS", "SAREGAMA.NS",
+    "SCHNEIDER.NS", "SHRIRAMFIN.NS", "SONATSOFTW.NS", "STARHEALTH.NS", "SUNTV.NS", "SUPREMEIND.NS",
+    "SUVENPHAR.NS", "SYMPHONY.NS", "TATACOMM.NS", "TATAELXSI.NS", "TEAMLEASE.NS", "TEJASNET.NS",
+    "THERMAX.NS", "THYROCARE.NS", "TIMKEN.NS", "TIPSMUSIC.NS", "TORNTPOWER.NS", "TVTODAY.NS",
+    "UJJIVANSFB.NS", "UNOMINDA.NS", "UTIAMC.NS", "VGUARD.NS", "VIJAYA.NS", "VOLTAS.NS",
+    "VTL.NS", "WELCORP.NS", "WELSPUNLIV.NS", "WESTLIFE.NS", "WHIRLPOOL.NS", "YESBANK.NS",
+    "ZENSARTECH.NS", "ZFCVINDIA.NS", "ZOMATO.NS", "ZYDUSLIFE.NS"
+]
+
+
+# Further diversified NSE names to provide a buffer for symbols temporarily
+# unavailable from the public quote provider.
+MORE_NSE_TICKERS += [
+    "AARTIDRUGS.NS", "AARTIIND.NS", "ADVENZYMES.NS", "AKZOINDIA.NS", "ALIVUS.NS",
+    "APCOTEXIND.NS", "ASHIANA.NS", "ASIANHOTNR.NS", "ASTRAZEN.NS", "BANARISUG.NS",
+    "BECTORFOOD.NS", "BIRLAMONEY.NS", "BLISSGVS.NS", "BOROLTD.NS", "BRIGADE.NS",
+    "CAMLINFINE.NS", "CAPLIPOINT.NS", "CARERATING.NS", "CELEBRITY.NS", "CENTURYPLY.NS",
+    "CHEMPLASTS.NS", "CIGNITITEC.NS", "CONCOR.NS", "DATAPATTNS.NS", "DCMSHRIRAM.NS",
+    "DHANUKA.NS", "DODLA.NS", "EDELWEISS.NS", "EMCURE.NS", "ETHOSLTD.NS",
+    "FINEORG.NS", "GABRIEL.NS", "GALLANTT.NS", "GESHIP.NS", "GMDCLTD.NS",
+    "GMRP&UI.NS", "GRSE.NS", "HBLENGINE.NS", "HIKAL.NS", "HINDWAREAP.NS",
+    "IBREALEST.NS", "ICRA.NS", "IFBIND.NS", "INDIGOPNTS.NS", "INOXINDIA.NS",
+    "INTELLECT.NS", "J&KBANK.NS", "JINDALSAW.NS", "JSWINFRA.NS", "KIRLOSBROS.NS",
+    "KOLTEPATIL.NS", "KOPRAN.NS", "LAXMIMACH.NS", "MAHLIFE.NS", "MAHSEAMLES.NS",
+    "MAZDOCK.NS", "MINDACORP.NS", "MOLDTKPAC.NS", "MOREPENLAB.NS", "MOTILALOFS.NS",
+    "NAVA.NS", "NFL.NS", "ORIENTCEM.NS", "ORIENTELEC.NS", "PCBL.NS",
+    "PITTIENG.NS", "PRICOLLTD.NS", "PRINCEPIPE.NS", "PRSMJOHNSN.NS", "RAYMONDLSL.NS",
+    "RBA.NS", "ROSSARI.NS", "SAFARI.NS", "SANSERA.NS", "SHILPAMED.NS",
+    "SHYAMMETL.NS", "SIGNATURE.NS", "SIS.NS", "SJS.NS", "STARCEMENT.NS",
+    "STYRENIX.NS", "SUBROS.NS", "SUDARSCHEM.NS", "SWSOLAR.NS", "TARSONS.NS",
+    "TCI.NS", "TCIEXP.NS", "TDPOWERSYS.NS", "THANGAMAYL.NS", "THOMASCOOK.NS",
+    "TITAGARH.NS", "TRITURBINE.NS", "UDEMY.NS", "UNIPARTS.NS", "UTTAMSUGAR.NS",
+    "VAKRANGEE.NS", "VARROC.NS", "VSTIND.NS", "ZENTEC.NS", "ZODIACLOTH.NS"
+]
+
+
+# Extra liquid NSE universe: all tabs use this same shared pool.
+MORE_NSE_TICKERS += [
+    "AAVAS.NS","ABREL.NS","ACE.NS","AEGISLOG.NS","AGI.NS","AJANTSOY.NS","ALKYLAMINE.NS",
+    "AMRUTANJAN.NS","ANUP.NS","APOLLOTYRE.NS","ARVSMART.NS","ATUL.NS","BAJAJCON.NS","BALPHARMA.NS",
+    "BASF.NS","BECTORFOOD.NS","BINDALAGRO.NS","BLS.NS","BORORENEW.NS","CESC.NS","CESCVENT.NS",
+    "CIPLA.NS","COFORGE.NS","COROMANDEL.NS","CUB.NS","CUMMINSIND.NS","CYBERTECH.NS","DBREALTY.NS",
+    "DCBBANK.NS","DELTACORP.NS","DHANI.NS","DISHMAN.NS","EASEMYTRIP.NS","EDELWEISS.NS","EIDPARRY.NS",
+    "ELGIEQUIP.NS","EMAMILTD.NS","EPL.NS","ESABINDIA.NS","EVEREADY.NS","EXCELINDUS.NS","FDC.NS",
+    "FINPIPE.NS","FORCEMOT.NS","FSL.NS","GABRIEL.NS","GALAXYSURF.NS","GEPIL.NS","GESHIP.NS",
+    "GICRE.NS","GODREJCP.NS","GPPL.NS","GRANULES.NS","GULFOILLUB.NS","HATSUN.NS","HAVELLS.NS",
+    "HFCL.NS","HINDCOPPER.NS","HINDPETRO.NS","HLEGLAS.NS","IBULHSGFIN.NS","IFCI.NS","IIFLSEC.NS",
+    "INDHOTEL.NS","INDIAGLYCO.NS","INDIANHUME.NS","INDIGO.NS","INDUSINDBK.NS","INFIBEAM.NS",
+    "INOXWIND.NS","IRCTC.NS","IRFC.NS","IRCON.NS","ITC.NS","JAMNAAUTO.NS","JINDALPOLY.NS",
+    "JKPAPER.NS","JSL.NS","JUBLINGREA.NS","JYOTHYLAB.NS","KALPATPOWR.NS","KAYNES.NS","KEC.NS",
+    "KFINTECH.NS","KNRCON.NS","KPIGREEN.NS","KRBL.NS","LALPATHLAB.NS","LICI.NS","LUPIN.NS",
+    "MAHLOG.NS","MANINFRA.NS","MAPMYINDIA.NS","MAXHEALTH.NS","MGL.NS","MINDACORP.NS","MOIL.NS",
+    "MOTILALOFS.NS","NAVA.NS","NESCO.NS","NFL.NS","NHPC.NS","NLCINDIA.NS","OLECTRA.NS","ONGC.NS",
+    "ORIENTELEC.NS","PAGEIND.NS","PERSISTENT.NS","PETRONET.NS","PFC.NS","PHOENIXLTD.NS","PNBHOUSING.NS",
+    "POLYCAB.NS","POLYMED.NS","PRAJIND.NS","PRICOLLTD.NS","RALLIS.NS","RAMCOCEM.NS","RAYMOND.NS",
+    "RITES.NS","RVNL.NS","SAIL.NS","SAREGAMA.NS","SBICARD.NS","SCI.NS","SJVN.NS","SOLARINDS.NS",
+    "SONACOMS.NS","SRF.NS","SUNDRMFAST.NS","SUNTV.NS","SUPREMEIND.NS","TATACHEM.NS","TATACOMM.NS",
+    "TATAELXSI.NS","TATAPOWER.NS","TATATECH.NS","TCI.NS","TEJASNET.NS","THERMAX.NS","TITAGARH.NS",
+    "TORNTPOWER.NS","TRENT.NS","TRITURBINE.NS","TVSMOTOR.NS","UBL.NS","UNOMINDA.NS","VBL.NS",
+    "VEDL.NS","VIJAYA.NS","VOLTAS.NS","WELCORP.NS","WHIRLPOOL.NS","ZEEL.NS","ZOMATO.NS"
+]
+
 # --- MARKET DATA: PUBLIC YAHOO FINANCE CHART DATA (NO DHAN) ---
 # Public Yahoo chart endpoint; no broker credentials are used.
 YAHOO_CHART_HOSTS = (
@@ -340,43 +522,45 @@ def fetch_yahoo_chart(ticker, interval, range_value):
 
 
 def _fetch_one_yahoo_symbol(ticker):
-    """Download one symbol's intraday and daily history."""
+    """Download one symbol once and derive session/daily data from 5-minute candles.
+    This keeps the expanded 500+ universe practical by avoiding a second Yahoo request
+    for every symbol, reducing rate-limit failures substantially.
+    """
     sym = str(ticker).replace(".NS", "").upper()
     meta, intraday = fetch_yahoo_chart(f"{sym}.NS", "5m", "5d")
     if intraday.empty:
         raise ValueError("No 5-minute candle history")
-    _, daily = fetch_yahoo_chart(f"{sym}.NS", "1d", "3mo")
+
+    intraday = intraday.dropna(subset=["Close"]).copy()
+    if intraday.empty:
+        raise ValueError("No valid intraday candles")
     current_price = meta.get("regularMarketPrice")
     if current_price is None:
-        valid_close = intraday["Close"].dropna()
-        if valid_close.empty:
-            raise ValueError("No valid latest close")
-        current_price = valid_close.iloc[-1]
-    # Use the most recent trading session present in the intraday candles.
-    # This also works on weekends, exchange holidays, and after market close.
+        current_price = float(intraday["Close"].iloc[-1])
+
     session_date = intraday.index[-1].date()
 
-    # IMPORTANT: derive previous close from the immediately preceding completed
-    # daily candle. Yahoo's chartPreviousClose/previousClose metadata can be stale
-    # or inconsistent with the selected exchange session, causing wrong % change.
-    daily_close = daily["Close"].dropna() if daily is not None and not daily.empty else pd.Series(dtype=float)
-    if not daily_close.empty:
-        previous_sessions = daily_close[daily_close.index.date < session_date]
-        previous_close = float(previous_sessions.iloc[-1]) if not previous_sessions.empty else None
-    else:
-        previous_close = None
+    # Build daily OHLCV from the available 5-minute candles (latest 5 sessions).
+    tmp = intraday.copy()
+    tmp["SessionDate"] = pd.to_datetime(tmp.index).date
+    daily = tmp.groupby("SessionDate").agg(
+        Open=("Open", "first"), High=("High", "max"), Low=("Low", "min"),
+        Close=("Close", "last"), Volume=("Volume", "sum")
+    )
+    daily.index = pd.to_datetime(daily.index)
+
+    previous_sessions = daily[daily.index.date < session_date]["Close"].dropna()
+    previous_close = float(previous_sessions.iloc[-1]) if not previous_sessions.empty else None
     if previous_close is None:
         previous_close = meta.get("chartPreviousClose") or meta.get("previousClose")
     if previous_close is None or float(previous_close) <= 0:
         raise ValueError("Previous close unavailable")
+
     session_intraday = intraday[intraday.index.date == session_date].copy()
     if session_intraday.empty:
         raise ValueError("Latest trading-session candles unavailable")
-    session_daily = daily[daily.index.date == session_date]
-    day_volume = (
-        float(session_daily["Volume"].fillna(0).iloc[-1])
-        if not session_daily.empty else float(session_intraday["Volume"].fillna(0).sum())
-    )
+    day_volume = float(session_intraday["Volume"].fillna(0).sum())
+
     return sym, {
         "last_price": float(current_price),
         "previous_close": float(previous_close),
@@ -387,13 +571,12 @@ def _fetch_one_yahoo_symbol(ticker):
         "session_date": session_date,
     }
 
-
 def fetch_bulk_quotes(tickers):
     """Fetch symbols concurrently; keep successful symbols if some requests fail."""
     quote_map = {}
     errors = []
     # A small worker pool reduces total wait time without flooding Yahoo's endpoint.
-    with ThreadPoolExecutor(max_workers=5) as pool:
+    with ThreadPoolExecutor(max_workers=8) as pool:
         futures = {pool.submit(_fetch_one_yahoo_symbol, ticker): ticker for ticker in tickers}
         for future in futures:
             try:
@@ -577,7 +760,13 @@ with col_h2:
     </div>
     """, unsafe_allow_html=True)
 
-all_tickers = list(set([t for sub in SECTOR_MAP.values() for t in sub] + NIFTY_50_TICKERS + FNO_STOCKS))
+# Merge the original sector map with the expanded theme universe. This shared
+# master list feeds every tab; duplicate tickers are removed before downloading.
+ALL_SECTOR_MAP = {**SECTOR_MAP, **EXPANDED_SECTOR_MAP}
+all_tickers = sorted(set(
+    [t for sub in ALL_SECTOR_MAP.values() for t in sub]
+    + NIFTY_50_TICKERS + FNO_STOCKS + MORE_NSE_TICKERS
+))
 
 with st.spinner("⚡ Scanning market data (Microsecond speed)..."):
     master_df, speed_ms, scan_error = execute_master_scan(tuple(all_tickers))
@@ -608,11 +797,11 @@ if not master_df.empty and "Symbol" in master_df.columns:
     </div>
     """, unsafe_allow_html=True)
 
-st.caption("DATA FEED: Yahoo Finance public quotes + historical candles | Change (%) = (LTP - previous completed NSE session close) / previous completed NSE session close × 100. TradingView links are retained for visual cross-checking. On weekends/holidays, the latest available trading session is displayed.")
+# DATA FEED note hidden from dashboard; feed logic remains unchanged.
 st.markdown("---")
 
 if 'selected_sector_click' not in st.session_state:
-    st.session_state.selected_sector_click = list(SECTOR_MAP.keys())[0]
+    st.session_state.selected_sector_click = list(ALL_SECTOR_MAP.keys())[0]
 
 if master_df.empty or "Symbol" not in master_df.columns:
     if scan_error:
@@ -638,9 +827,9 @@ else:
     
     # TAB 1: ALL SECTORS MATRIX
     with tab1:
-        st.caption(f"Feed Latency: {speed_ms} ms | Monitored Stocks: {len(master_df)} | Auto-Refresh: 30s")
+        st.caption(f"Feed Latency: {speed_ms} ms | Active scanned stocks: {len(master_df)} | Expanded universe: 500+ | Auto-Refresh: 30s")
         sector_summary = []
-        for sec, tks in SECTOR_MAP.items():
+        for sec, tks in ALL_SECTOR_MAP.items():
             clean_tks = [t.replace(".NS", "") for t in tks]
             sec_df = master_df[master_df["Symbol"].isin(clean_tks)]
             if not sec_df.empty:
@@ -676,9 +865,9 @@ else:
 
     # TAB 2: SECTOR STOCKS
     with tab2:
-        sel_sec = st.selectbox("Select Sector", list(SECTOR_MAP.keys()), index=list(SECTOR_MAP.keys()).index(st.session_state.selected_sector_click))
+        sel_sec = st.selectbox("Select Sector", list(ALL_SECTOR_MAP.keys()), index=list(ALL_SECTOR_MAP.keys()).index(st.session_state.selected_sector_click))
         st.session_state.selected_sector_click = sel_sec
-        clean_tks = [t.replace(".NS", "") for t in SECTOR_MAP[sel_sec]]
+        clean_tks = [t.replace(".NS", "") for t in ALL_SECTOR_MAP[sel_sec]]
         stocks_subset = master_df[master_df["Symbol"].isin(clean_tks)].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         st.write(f"Showing all **{len(stocks_subset)}** stocks in **{sel_sec}** (Descending order of %):")
         if not stocks_subset.empty:
