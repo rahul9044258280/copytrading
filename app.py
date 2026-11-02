@@ -622,7 +622,7 @@ if master_df.empty or "Symbol" not in master_df.columns:
 else:
     master_df = master_df.sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
     
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
         "1. All Sectors",
         "2. Sector Stocks",
         "3. 9:15 Open=Low/High",
@@ -632,7 +632,8 @@ else:
         "7. VWAP+RVol",
         "8. Institutional Vol Surge (9:30 AM)",
         "9. FII, DII & Breakouts",
-        "10. Chartink Vol Surge"
+        "10. Chartink Vol Surge",
+        "11. Combined 5m/15m Breakout"
     ])
     
     # TAB 1: ALL SECTORS MATRIX
@@ -1088,6 +1089,75 @@ else:
                                 <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
                             </div>
                             """, unsafe_allow_html=True)
+
+    # TAB 11: COMBINED CONFLUENCE BREAKOUT SCANNER
+    with tab11:
+        st.markdown("### Combined Rules Scanner — 5-Min & 15-Min Breakout")
+        st.caption(
+            "Is tab mein Tab 3, 6, 7, 8, 9 aur 10 ke rules ko ek saath AND condition mein check kiya gaya hai. "
+            "Bullish ke liye opening 5m candle Open=Low aur bearish ke liye Open=High; saath hi ORB, VWAP+RVol, "
+            "9:30 institutional surge, FII/DII live score aur daily volume surge sab match hona zaroori hai. "
+            "Sirf sabhi conditions pass karne wale stocks dikhaye jayenge."
+        )
+
+        def render_combined_breakouts(timeframe_label, status_col, interval):
+            st.markdown(f"#### {timeframe_label} Candle Breakout / Breakdown")
+            bullish_mask = (
+                master_df[status_col].fillna("").str.contains("BULLISH", case=False)
+                & (master_df["First5mCandleReady"] == True)
+                & (master_df["First5mOpenLow"] == True)
+                & master_df["Status"].fillna("").str.contains("BULLISH", case=False)
+                & master_df["ProStatus"].fillna("").str.contains("PRO BULLISH", case=False)
+                & master_df["Surge930Status"].fillna("").str.contains("BULLISH", case=False)
+                & ((master_df["FII_Live_Score"] > 0) | (master_df["DII_Live_Score"] > 0))
+                & (master_df["VolSurge"] == True)
+            )
+            bearish_mask = (
+                master_df[status_col].fillna("").str.contains("BEARISH|BREAKDOWN", case=False, regex=True)
+                & (master_df["First5mCandleReady"] == True)
+                & (master_df["First5mOpenHigh"] == True)
+                & master_df["Status"].fillna("").str.contains("BEARISH|BREAKDOWN", case=False, regex=True)
+                & master_df["ProStatus"].fillna("").str.contains("PRO BEARISH", case=False)
+                & master_df["Surge930Status"].fillna("").str.contains("BEARISH", case=False)
+                & ((master_df["FII_Live_Score"] > 0) | (master_df["DII_Live_Score"] > 0))
+                & (master_df["VolSurge"] == True)
+            )
+            bullish = master_df[bullish_mask].sort_values("Change (%)", ascending=False).reset_index(drop=True)
+            bearish = master_df[bearish_mask].sort_values("Change (%)", ascending=True).reset_index(drop=True)
+            st.write(f"**Bullish all-rules match:** {len(bullish)} | **Bearish all-rules match:** {len(bearish)}")
+
+            for label, data, card_class in (
+                ("Bullish Breakouts", bullish, "matrix-card-green"),
+                ("Bearish Breakdowns", bearish, "matrix-card-red"),
+            ):
+                st.markdown(f"##### {label} ({len(data)} stocks)")
+                if data.empty:
+                    st.info("Abhi koi stock sabhi combined rules ko match nahi kar raha hai.")
+                    continue
+                for start in range(0, len(data), 4):
+                    cols = st.columns(4)
+                    for j in range(4):
+                        if start + j >= len(data):
+                            continue
+                        r = data.iloc[start + j]
+                        sym = str(r["Symbol"])
+                        tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{sym}&interval={interval}"
+                        with cols[j]:
+                            st.markdown(f"""
+                            <div class="{card_class}">
+                                <h5 style="margin:0;color:#fff;font-size:15px;">{html.escape(str(r.get('Name', sym)))}</h5>
+                                <h3 style="margin:4px 0;color:#fff;">₹{float(r['LTP']):,.2f} ({float(r['Change (%)']):+.2f}%)</h3>
+                                <p style="font-size:11px;color:#e2e8f0;margin:0;">VWAP: ₹{float(r['VWAP']):,.2f} | RVol: {float(r['RVol']):.2f}x</p>
+                                <p style="font-size:11px;color:#e2e8f0;margin:0;">ORB: ₹{float(r['ORB Low']):,.2f}–₹{float(r['ORB High']):,.2f}</p>
+                                <p style="font-size:11px;color:#e2e8f0;margin:0;">FII: {float(r['FII_Live_Score']):.2f} | DII: {float(r['DII_Live_Score']):.2f}</p>
+                                <p style="font-size:11px;color:#e2e8f0;margin:0;">Daily Vol Surge: 3x+ 20-day average ✓</p>
+                                <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView ({timeframe_label}) ↗</a>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+        render_combined_breakouts("5-Min", "First5mStatus", "5")
+        st.markdown("---")
+        render_combined_breakouts("15-Min", "First15mStatus", "15")
 
     # Strict 30 Seconds Auto Refresh Loop
     time.sleep(30)
