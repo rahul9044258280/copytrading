@@ -4,8 +4,10 @@ import requests
 from datetime import datetime, timezone, timedelta
 import time
 import html
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import repeat
+from threading import local
+from requests.adapters import HTTPAdapter
 
 # --- IST TIMEZONE (UTC +5:30) ---
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -130,6 +132,12 @@ header {visibility: hidden;}
     box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2);
     margin-bottom: 10px;
     transition: transform 0.15s ease;
+}
+.matrix-card-green h5, .matrix-card-red h5 {
+    font-size: 18px !important;
+    line-height: 1.25 !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.15px !important;
 }
 .matrix-card-green:hover {
     transform: translateY(-2px);
@@ -305,7 +313,7 @@ EXPANDED_SECTOR_MAP = {
     "Power, Renewable & Utilities": [
         "TATAPOWER.NS", "ADANIGREEN.NS", "ADANIPOWER.NS", "JSWENERGY.NS", "NHPC.NS",
         "SJVN.NS", "CESC.NS", "TORNTPOWER.NS", "GVT&D.NS", "INOXWIND.NS", "SUZLON.NS",
-        "WAAREEENER.NS", "KPIGREEN.NS", "BORORENEW.NS", "WEBELSOLAR.NS", "ORIANA.NS",
+        "WAAREEENER.NS", "KPIGREEN.NS", "BORORENEW.NS", "WEBELSOLAR.NS",
         "VIKRAMSOLR.NS", "ACMESOLAR.NS", "NTPCGREEN.NS", "INOXGREEN.NS", "GENUSPOWER.NS",
         "KALYANKJIL.NS", "TRANSRAILL.NS", "CGPOWER.NS", "HPL.NS", "ECLERX.NS"
     ],
@@ -473,51 +481,62 @@ YAHOO_HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
+# Reuse HTTP connections per worker thread. This avoids repeatedly opening TLS
+# connections for hundreds of symbols while keeping sessions thread-safe.
+_HTTP_LOCAL = local()
+
+def _get_yahoo_session():
+    session = getattr(_HTTP_LOCAL, "session", None)
+    if session is None:
+        session = requests.Session()
+        session.headers.update(YAHOO_HEADERS)
+        adapter = HTTPAdapter(pool_connections=24, pool_maxsize=24, max_retries=0)
+        session.mount("https://", adapter)
+        _HTTP_LOCAL.session = session
+    return session
+
 
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_yahoo_chart(ticker, interval, range_value):
-    """Fetch public Yahoo candles with host fallback and short retry handling."""
+    """Fetch Yahoo candles; reuse connections and fall back quickly to query2."""
     last_error = None
+    session = _get_yahoo_session()
     for host in YAHOO_CHART_HOSTS:
         url = f"{host}/{ticker}"
-        for attempt in range(2):
-            try:
-                response = requests.get(
-                    url,
-                    params={"interval": interval, "range": range_value, "includePrePost": "false"},
-                    headers=YAHOO_HEADERS,
-                    timeout=18,
-                )
-                if response.status_code in (429, 500, 502, 503, 504):
-                    time.sleep(0.8 * (attempt + 1))
-                    last_error = f"HTTP {response.status_code}"
-                    continue
-                response.raise_for_status()
-                body = response.json()
-                chart = body.get("chart", {})
-                if chart.get("error"):
-                    raise RuntimeError(str(chart["error"]))
-                result = chart.get("result") or []
-                if not result:
-                    return {}, pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
-                item = result[0]
-                timestamps = item.get("timestamp") or []
-                quote = (item.get("indicators", {}).get("quote") or [{}])[0]
-                if not timestamps:
-                    return item.get("meta", {}), pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
-                frame = pd.DataFrame({
-                    "Open": quote.get("open", []), "High": quote.get("high", []),
-                    "Low": quote.get("low", []), "Close": quote.get("close", []),
-                    "Volume": quote.get("volume", []),
-                }, index=pd.to_datetime(timestamps, unit="s", utc=True).tz_convert("Asia/Kolkata"))
-                frame.index.name = "Datetime"
-                frame = frame.dropna(subset=["Open", "High", "Low", "Close"], how="all")
-                frame = frame.sort_index()
-                frame = frame[~frame.index.duplicated(keep="last")]
-                return item.get("meta", {}), frame
-            except Exception as exc:
-                last_error = f"{type(exc).__name__}: {exc}"
-                break
+        try:
+            response = session.get(
+                url,
+                params={"interval": interval, "range": range_value, "includePrePost": "false"},
+                timeout=(4, 9),
+            )
+            if response.status_code in (429, 500, 502, 503, 504):
+                last_error = f"HTTP {response.status_code}"
+                continue
+            response.raise_for_status()
+            body = response.json()
+            chart = body.get("chart", {})
+            if chart.get("error"):
+                raise RuntimeError(str(chart["error"]))
+            result = chart.get("result") or []
+            if not result:
+                return {}, pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
+            item = result[0]
+            timestamps = item.get("timestamp") or []
+            quote = (item.get("indicators", {}).get("quote") or [{}])[0]
+            if not timestamps:
+                return item.get("meta", {}), pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
+            frame = pd.DataFrame({
+                "Open": quote.get("open", []), "High": quote.get("high", []),
+                "Low": quote.get("low", []), "Close": quote.get("close", []),
+                "Volume": quote.get("volume", []),
+            }, index=pd.to_datetime(timestamps, unit="s", utc=True).tz_convert("Asia/Kolkata"))
+            frame.index.name = "Datetime"
+            frame = frame.dropna(subset=["Open", "High", "Low", "Close"], how="all")
+            frame = frame.sort_index()
+            frame = frame[~frame.index.duplicated(keep="last")]
+            return item.get("meta", {}), frame
+        except Exception as exc:
+            last_error = f"{type(exc).__name__}: {exc}"
     raise RuntimeError(last_error or "Yahoo Finance request failed")
 
 
@@ -575,10 +594,12 @@ def fetch_bulk_quotes(tickers):
     """Fetch symbols concurrently; keep successful symbols if some requests fail."""
     quote_map = {}
     errors = []
-    # A small worker pool reduces total wait time without flooding Yahoo's endpoint.
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    # Moderate parallelism plus connection reuse accelerates the first full scan.
+    # 16 workers is a balance: faster than the old 8-worker pool without an
+    # excessively aggressive burst against Yahoo's public endpoint.
+    with ThreadPoolExecutor(max_workers=16, thread_name_prefix="scanpro-yahoo") as pool:
         futures = {pool.submit(_fetch_one_yahoo_symbol, ticker): ticker for ticker in tickers}
-        for future in futures:
+        for future in as_completed(futures):
             try:
                 sym, quote = future.result()
                 quote_map[sym] = quote
@@ -719,6 +740,7 @@ def fetch_single_stock(ticker, quote_map):
             "First5mHigh": first_5m_high, "First5mLow": first_5m_low,
             "First5mClose": first_5m_close, "First5mOpenLow": first_5m_open_low,
             "First5mOpenHigh": first_5m_open_high,
+            "First5mMidpoint": round((first_5m_high + first_5m_low) / 2, 2) if pd.notna(first_5m_high) and pd.notna(first_5m_low) else float("nan"),
             "First5mCandleReady": opening_candle_ready, "First5mStatus": first_5m_status,
             "First15mHigh": round(first_15m_high, 2), "First15mLow": round(first_15m_low, 2),
             "First15mStatus": first_15m_status, "Status": status, "ProStatus": pro_status,
@@ -735,7 +757,7 @@ def execute_master_scan(all_tickers_tuple):
     quote_map, quote_error = fetch_bulk_quotes(all_tickers_tuple)
     if quote_error:
         return pd.DataFrame(), round((time.time() - start_t) * 1000, 2), quote_error
-    with ThreadPoolExecutor(max_workers=12) as executor:
+    with ThreadPoolExecutor(max_workers=16, thread_name_prefix="scanpro-calc") as executor:
         results = list(executor.map(fetch_single_stock, all_tickers_tuple,
                                     repeat(quote_map)))
     valid = [r for r in results if r is not None]
@@ -843,9 +865,9 @@ else:
                 })
         sec_summary_df = pd.DataFrame(sector_summary).sort_values(by="Avg Change (%)", ascending=False).reset_index(drop=True)
         if not sec_summary_df.empty:
-            for i in range(0, len(sec_summary_df), 4):
-                cols = st.columns(4)
-                for j in range(4):
+            for i in range(0, len(sec_summary_df), 6):
+                cols = st.columns(6)
+                for j in range(6):
                     if i + j < len(sec_summary_df):
                         row = sec_summary_df.iloc[i + j]
                         avg_val = row["Avg Change (%)"]
@@ -871,9 +893,9 @@ else:
         stocks_subset = master_df[master_df["Symbol"].isin(clean_tks)].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         st.write(f"Showing all **{len(stocks_subset)}** stocks in **{sel_sec}** (Descending order of %):")
         if not stocks_subset.empty:
-            for i in range(0, len(stocks_subset), 4):
-                cols = st.columns(4)
-                for j in range(4):
+            for i in range(0, len(stocks_subset), 6):
+                cols = st.columns(6)
+                for j in range(6):
                     if i + j < len(stocks_subset):
                         stk = stocks_subset.iloc[i + j]
                         chg_val = stk["Change (%)"]
@@ -883,7 +905,7 @@ else:
                         with cols[j]:
                             st.markdown(f"""
                             <div class="{card_cls}">
-                                <h5 style="margin: 0; color: #fff; font-size: 15px;">{html.escape(str(stk.get('Name', sym)))}</h5>
+                                <h5 style="margin: 0; color: #fff; font-size: 18px; font-weight: 900;">{html.escape(str(stk.get('Name', sym)))}</h5>
                                 <h3 style="margin: 4px 0; color: #fff;">₹{stk['LTP']:,.2f} ({chg_val:+.2f}%)</h3>
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Vol: {stk['Volume']:,}</p>
                                 <a href="{tv_url}" target="_blank" class="tv-link">📈 TradingView (5m) ↗</a>
@@ -951,9 +973,59 @@ else:
             "Scanner candle complete hone ke baad (09:20 AM) results dikhata hai."
         )
 
+        # TOP SECTION: Open=Low + discount-zone pullback candidates.
+        st.markdown("### ⭐ OPEN = LOW + 5-Minute DISCOUNT ZONE (Bullish Watchlist)")
+        st.caption(
+            "Discount zone = 09:15–09:20 opening 5-minute candle ke High-Low range ka lower 50% "
+            "(Low se midpoint tak). Sirf Open=Low stocks dikhte hain. Bullish checks sirf confluence ranking hain, "
+            "profit/probability guarantee nahi; entry se pehle chart confirmation zaroor dekhein."
+        )
         if not master_df.get("First5mCandleReady", pd.Series(False, index=master_df.index)).any():
             st.info("09:15–09:20 opening candle abhi available/complete nahi hai. 09:20 AM ke baad refresh karein.")
         else:
+            discount_candidates = master_df[
+                (master_df["First5mCandleReady"] == True) &
+                (master_df["First5mOpenLow"] == True) &
+                (master_df["LTP"] >= master_df["First5mLow"]) &
+                (master_df["LTP"] <= master_df["First5mMidpoint"])
+            ].copy()
+            if not discount_candidates.empty:
+                discount_candidates["Bullish Checks"] = (
+                    (discount_candidates["First5mClose"] > discount_candidates["First5mOpen"]).astype(int) +
+                    (discount_candidates["LTP"] > discount_candidates["VWAP"]).astype(int) +
+                    (discount_candidates["RVol"] >= 1.3).astype(int) +
+                    (discount_candidates["LTP"] > discount_candidates["First5mLow"] +
+                     (discount_candidates["First5mHigh"] - discount_candidates["First5mLow"]) * 0.25).astype(int)
+                )
+                discount_candidates = discount_candidates.sort_values(
+                    by=["Bullish Checks", "RVol", "Change (%)"], ascending=[False, False, False]
+                ).reset_index(drop=True)
+                st.markdown(f"#### Discount-zone Open=Low candidates ({len(discount_candidates)} stocks)")
+                st.caption("Bullish checks (0–4): green opening candle, price above VWAP, RVol ≥ 1.3, and bounce at least 25% above opening low.")
+                for row_start in range(0, len(discount_candidates), 6):
+                    card_cols = st.columns(6)
+                    for col_idx in range(6):
+                        if row_start + col_idx >= len(discount_candidates):
+                            continue
+                        stock = discount_candidates.iloc[row_start + col_idx]
+                        symbol = str(stock["Symbol"])
+                        tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{symbol}&interval=5"
+                        checks = int(stock["Bullish Checks"])
+                        with card_cols[col_idx]:
+                            st.markdown(
+                                f"<div class='matrix-card-green'><h5 style='margin:0;color:#fff;font-size:17px;font-weight:900;'>{html.escape(str(stock.get('Name', symbol)))}</h5>"
+                                f"<h3 style='margin:5px 0;color:#fff;'>₹{float(stock['LTP']):,.2f}</h3>"
+                                f"<p style='font-size:11px;color:#e2e8f0;margin:0;'>Discount: ₹{float(stock['First5mLow']):,.2f} – ₹{float(stock['First5mMidpoint']):,.2f}</p>"
+                                f"<p style='font-size:11px;color:#e2e8f0;margin:0;'>VWAP: ₹{float(stock['VWAP']):,.2f} | RVol: {float(stock['RVol']):.2f}</p>"
+                                f"<p style='font-size:12px;color:#a7f3d0;margin:2px 0;'>Bullish checks: {checks}/4</p>"
+                                f"<a href='{tv_url}' target='_blank' class='tv-link'>📈 TradingView (5m) ↗</a></div>",
+                                unsafe_allow_html=True,
+                            )
+            else:
+                st.info("Abhi koi Open=Low stock opening 5-minute candle ke discount zone mein nahi hai.")
+
+            st.markdown("---")
+            st.markdown("### Existing Open=Low / Open=High Scanner")
             open_low_df = master_df[
                 (master_df["First5mCandleReady"] == True) &
                 (master_df["First5mOpenLow"] == True)
@@ -968,9 +1040,9 @@ else:
                 if data.empty:
                     st.info("Is condition mein abhi koi stock nahi mila.")
                     return
-                for row_start in range(0, len(data), 4):
-                    card_cols = st.columns(4)
-                    for col_idx in range(4):
+                for row_start in range(0, len(data), 6):
+                    card_cols = st.columns(6)
+                    for col_idx in range(6):
                         if row_start + col_idx >= len(data):
                             continue
                         stock = data.iloc[row_start + col_idx]
@@ -1003,9 +1075,9 @@ else:
         fno_df = master_df[master_df["Symbol"].isin(clean_fno)].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
         st.write(f"Total F&O Scanned Stocks: **{len(fno_df)}** (Descending Order)")
         if not fno_df.empty:
-            for i in range(0, len(fno_df), 4):
-                cols = st.columns(4)
-                for j in range(4):
+            for i in range(0, len(fno_df), 6):
+                cols = st.columns(6)
+                for j in range(6):
                     if i + j < len(fno_df):
                         r = fno_df.iloc[i + j]
                         sym = r['Symbol']
@@ -1032,9 +1104,9 @@ else:
         
         st.markdown(f"#### All Bullish ORB Breakouts ({len(orb_bull)} stocks)")
         if not orb_bull.empty:
-            for i in range(0, len(orb_bull), 4):
-                cols = st.columns(4)
-                for j in range(4):
+            for i in range(0, len(orb_bull), 6):
+                cols = st.columns(6)
+                for j in range(6):
                     if i + j < len(orb_bull):
                         r = orb_bull.iloc[i + j]
                         sym = r['Symbol']
@@ -1053,9 +1125,9 @@ else:
             
         st.markdown(f"#### All Bearish ORB Breakdowns ({len(orb_bear)} stocks)")
         if not orb_bear.empty:
-            for i in range(0, len(orb_bear), 4):
-                cols = st.columns(4)
-                for j in range(4):
+            for i in range(0, len(orb_bear), 6):
+                cols = st.columns(6)
+                for j in range(6):
                     if i + j < len(orb_bear):
                         r = orb_bear.iloc[i + j]
                         sym = r['Symbol']
@@ -1080,9 +1152,9 @@ else:
         
         st.markdown(f"#### All Pro Bullish Setups ({len(pro_bull)} stocks)")
         if not pro_bull.empty:
-            for i in range(0, len(pro_bull), 4):
-                cols = st.columns(4)
-                for j in range(4):
+            for i in range(0, len(pro_bull), 6):
+                cols = st.columns(6)
+                for j in range(6):
                     if i + j < len(pro_bull):
                         r = pro_bull.iloc[i + j]
                         sym = r['Symbol']
@@ -1101,9 +1173,9 @@ else:
             
         st.markdown(f"#### All Pro Bearish Setups ({len(pro_bear)} stocks)")
         if not pro_bear.empty:
-            for i in range(0, len(pro_bear), 4):
-                cols = st.columns(4)
-                for j in range(4):
+            for i in range(0, len(pro_bear), 6):
+                cols = st.columns(6)
+                for j in range(6):
                     if i + j < len(pro_bear):
                         r = pro_bear.iloc[i + j]
                         sym = r['Symbol']
@@ -1129,9 +1201,9 @@ else:
             surge_stocks = pd.DataFrame()
         st.write(f"Total Volume Surge Stocks Found: **{len(surge_stocks)}**")
         if not surge_stocks.empty:
-            for i in range(0, len(surge_stocks), 4):
-                cols = st.columns(4)
-                for j in range(4):
+            for i in range(0, len(surge_stocks), 6):
+                cols = st.columns(6)
+                for j in range(6):
                     if i + j < len(surge_stocks):
                         r = surge_stocks.iloc[i + j]
                         sym = r['Symbol']
@@ -1158,9 +1230,9 @@ else:
         
         st.markdown(f"#### Bullish Vol Surge Movers ({len(surge_930_bull)} stocks)")
         if not surge_930_bull.empty:
-            for i in range(0, len(surge_930_bull), 4):
-                cols = st.columns(4)
-                for j in range(4):
+            for i in range(0, len(surge_930_bull), 6):
+                cols = st.columns(6)
+                for j in range(6):
                     if i + j < len(surge_930_bull):
                         r = surge_930_bull.iloc[i + j]
                         sym = r['Symbol']
@@ -1179,9 +1251,9 @@ else:
             
         st.markdown(f"#### Bearish Vol Surge Movers ({len(surge_930_bear)} stocks)")
         if not surge_930_bear.empty:
-            for i in range(0, len(surge_930_bear), 4):
-                cols = st.columns(4)
-                for j in range(4):
+            for i in range(0, len(surge_930_bear), 6):
+                cols = st.columns(6)
+                for j in range(6):
                     if i + j < len(surge_930_bear):
                         r = surge_930_bear.iloc[i + j]
                         sym = r['Symbol']
@@ -1210,9 +1282,9 @@ else:
         st.write(f"**Bullish 5m Breakouts:** {len(f5_bull)} | **Bearish 5m Breakdowns:** {len(f5_bear)}")
         
         if not f5_bull.empty:
-            for i in range(0, len(f5_bull), 4):
-                cols = st.columns(4)
-                for j in range(4):
+            for i in range(0, len(f5_bull), 6):
+                cols = st.columns(6)
+                for j in range(6):
                     if i + j < len(f5_bull):
                         r = f5_bull.iloc[i + j]
                         sym = r['Symbol']
@@ -1235,9 +1307,9 @@ else:
         st.write(f"**Bullish 15m Breakouts:** {len(f15_bull)} | **Bearish 15m Breakdowns:** {len(f15_bear)}")
         
         if not f15_bull.empty:
-            for i in range(0, len(f15_bull), 4):
-                cols = st.columns(4)
-                for j in range(4):
+            for i in range(0, len(f15_bull), 6):
+                cols = st.columns(6)
+                for j in range(6):
                     if i + j < len(f15_bull):
                         r = f15_bull.iloc[i + j]
                         sym = r['Symbol']
@@ -1260,9 +1332,9 @@ else:
         st.write(f"**FII Live Stocks:** {len(fii_live_df)} | **DII Live Stocks:** {len(dii_live_df)}")
         
         if not fii_live_df.empty:
-            for i in range(0, len(fii_live_df), 4):
-                cols = st.columns(4)
-                for j in range(4):
+            for i in range(0, len(fii_live_df), 6):
+                cols = st.columns(6)
+                for j in range(6):
                     if i + j < len(fii_live_df):
                         r = fii_live_df.iloc[i + j]
                         sym = r['Symbol']
@@ -1323,9 +1395,9 @@ else:
                 if data.empty:
                     st.info("Abhi koi stock sabhi combined rules ko match nahi kar raha hai.")
                     continue
-                for start in range(0, len(data), 4):
-                    cols = st.columns(4)
-                    for j in range(4):
+                for start in range(0, len(data), 6):
+                    cols = st.columns(6)
+                    for j in range(6):
                         if start + j >= len(data):
                             continue
                         r = data.iloc[start + j]
