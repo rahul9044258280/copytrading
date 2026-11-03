@@ -692,6 +692,20 @@ def fetch_single_stock(ticker, quote_map):
             first_5m_open_low = False
             first_5m_open_high = False
 
+        # Intraday invalidation for Tab 3:
+        # Once any later 5-minute candle trades beyond the opening candle's
+        # low/high, permanently exclude that Open=Low/Open=High candidate
+        # from the respective Tab 3 list for the rest of the session.
+        later_rows = today_df[today_df.index.time > opening_time]
+        first_5m_low_broken = bool(
+            opening_candle_ready and not later_rows.empty and
+            (pd.to_numeric(later_rows["Low"], errors="coerce") < first_5m_low - tick_tolerance).any()
+        )
+        first_5m_high_broken = bool(
+            opening_candle_ready and not later_rows.empty and
+            (pd.to_numeric(later_rows["High"], errors="coerce") > first_5m_high + tick_tolerance).any()
+        )
+
         first_5m_status = "NORMAL"
         if opening_candle_ready and curr_price > first_5m_high:
             first_5m_status = "1ST 5M BULLISH BREAKOUT"
@@ -740,6 +754,8 @@ def fetch_single_stock(ticker, quote_map):
             "First5mHigh": first_5m_high, "First5mLow": first_5m_low,
             "First5mClose": first_5m_close, "First5mOpenLow": first_5m_open_low,
             "First5mOpenHigh": first_5m_open_high,
+            "First5mLowBroken": first_5m_low_broken,
+            "First5mHighBroken": first_5m_high_broken,
             "First5mMidpoint": round((first_5m_high + first_5m_low) / 2, 2) if pd.notna(first_5m_high) and pd.notna(first_5m_low) else float("nan"),
             "First5mCandleReady": opening_candle_ready, "First5mStatus": first_5m_status,
             "First15mHigh": round(first_15m_high, 2), "First15mLow": round(first_15m_low, 2),
@@ -986,6 +1002,7 @@ else:
             discount_candidates = master_df[
                 (master_df["First5mCandleReady"] == True) &
                 (master_df["First5mOpenLow"] == True) &
+                (~master_df["First5mLowBroken"].fillna(False)) &
                 (master_df["LTP"] >= master_df["First5mLow"]) &
                 (master_df["LTP"] <= master_df["First5mMidpoint"])
             ].copy()
@@ -1028,11 +1045,13 @@ else:
             st.markdown("### Existing Open=Low / Open=High Scanner")
             open_low_df = master_df[
                 (master_df["First5mCandleReady"] == True) &
-                (master_df["First5mOpenLow"] == True)
+                (master_df["First5mOpenLow"] == True) &
+                (~master_df["First5mLowBroken"].fillna(False))
             ].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
             open_high_df = master_df[
                 (master_df["First5mCandleReady"] == True) &
-                (master_df["First5mOpenHigh"] == True)
+                (master_df["First5mOpenHigh"] == True) &
+                (~master_df["First5mHighBroken"].fillna(False))
             ].sort_values(by="Change (%)", ascending=False).reset_index(drop=True)
 
             def render_opening_candle_cards(data, card_class, label):
