@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import requests
 from datetime import datetime, timezone, timedelta
@@ -791,12 +792,27 @@ with col_h1:
     """, unsafe_allow_html=True)
 
 with col_h2:
-    st.markdown(f"""
-    <div class="time-3d-box">
-        <span style="font-size: 11px; color: #a7f3d0; font-weight: 700; display: block; margin-bottom: 2px;">IST MARKET TIME</span>
-        <span class="time-3d-text">{get_ist_time().strftime('%H:%M:%S')}</span>
+    components.html("""
+    <div class="time-3d-box" style="box-sizing:border-box;width:100%;text-align:center;">
+        <span style="font-size:11px;color:#a7f3d0;font-weight:700;display:block;margin-bottom:2px;">IST MARKET TIME</span>
+        <span id="scanpro-ist-clock" class="time-3d-text">--:--:--</span>
     </div>
-    """, unsafe_allow_html=True)
+    <script>
+    (function () {
+        const clock = document.getElementById("scanpro-ist-clock");
+        function updateISTClock() {
+            const now = new Date();
+            clock.textContent = new Intl.DateTimeFormat("en-IN", {
+                timeZone: "Asia/Kolkata",
+                hour: "2-digit", minute: "2-digit", second: "2-digit",
+                hour12: false
+            }).format(now);
+        }
+        updateISTClock();
+        setInterval(updateISTClock, 1000);
+    })();
+    </script>
+    """, height=68, scrolling=False)
 
 # Merge the original sector map with the expanded theme universe. This shared
 # master list feeds every tab; duplicate tickers are removed before downloading.
@@ -1032,6 +1048,7 @@ else:
                             st.markdown(
                                 f"<div class='matrix-card-green'><h5 style='margin:0;color:#fff;font-size:17px;font-weight:900;'>{html.escape(str(stock.get('Name', symbol)))}</h5>"
                                 f"<h3 style='margin:5px 0;color:#fff;'>₹{float(stock['LTP']):,.2f}</h3>"
+                                f"<p style='font-size:13px;font-weight:800;color:{'#86efac' if float(stock['Change (%)']) >= 0 else '#fca5a5'};margin:0 0 3px 0;'>Change: {float(stock['Change (%)']):+.2f}%</p>"
                                 f"<p style='font-size:11px;color:#e2e8f0;margin:0;'>Discount: ₹{float(stock['First5mLow']):,.2f} – ₹{float(stock['First5mMidpoint']):,.2f}</p>"
                                 f"<p style='font-size:11px;color:#e2e8f0;margin:0;'>VWAP: ₹{float(stock['VWAP']):,.2f} | RVol: {float(stock['RVol']):.2f}</p>"
                                 f"<p style='font-size:12px;color:#a7f3d0;margin:2px 0;'>Bullish checks: {checks}/4</p>"
