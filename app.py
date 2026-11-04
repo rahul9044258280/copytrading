@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import requests
 from datetime import datetime, timezone, timedelta
@@ -792,31 +791,66 @@ with col_h1:
     """, unsafe_allow_html=True)
 
 with col_h2:
-    components.html("""
+    ist_now = get_ist_time().strftime("%H:%M:%S")
+    st.markdown(f"""
     <div class="time-3d-box" style="box-sizing:border-box;width:100%;text-align:center;">
         <span style="font-size:11px;color:#a7f3d0;font-weight:700;display:block;margin-bottom:2px;">IST MARKET TIME</span>
-        <span id="scanpro-ist-clock" class="time-3d-text">--:--:--</span>
+        <span class="time-3d-text">{ist_now}</span>
     </div>
-    <script>
-    (function () {
-        const clock = document.getElementById("scanpro-ist-clock");
-        function updateISTClock() {
-            const now = new Date();
-            clock.textContent = new Intl.DateTimeFormat("en-IN", {
-                timeZone: "Asia/Kolkata",
-                hour: "2-digit", minute: "2-digit", second: "2-digit",
-                hour12: false
-            }).format(now);
-        }
-        updateISTClock();
-        setInterval(updateISTClock, 1000);
-    })();
-    </script>
-    """, height=68, scrolling=False)
+    """, unsafe_allow_html=True)
 
-# Merge the original sector map with the expanded theme universe. This shared
-# master list feeds every tab; duplicate tickers are removed before downloading.
-ALL_SECTOR_MAP = {**SECTOR_MAP, **EXPANDED_SECTOR_MAP}
+# Major sector structure: keep the entire expanded stock universe, but show
+# only 11 broad sectors on Tab 1 and Tab 2.
+SOURCE_SECTOR_MAP = {**SECTOR_MAP, **EXPANDED_SECTOR_MAP}
+
+def _merge_sector_lists(*sector_names):
+    merged = []
+    seen = set()
+    for sector_name in sector_names:
+        for ticker in SOURCE_SECTOR_MAP.get(sector_name, []):
+            if ticker not in seen:
+                seen.add(ticker)
+                merged.append(ticker)
+    return merged
+
+ALL_SECTOR_MAP = {
+    "Banks, Finance & Insurance": _merge_sector_lists(
+        "Private Bank", "PSU Bank", "Financial Services & NBFC",
+        "Banks, Finance & Insurance"
+    ),
+    "IT, Technology & Telecom": _merge_sector_lists(
+        "IT & Technology", "Jio & Telecom Ecosystem", "Technology, Media & Digital"
+    ),
+    "Automobile & Mobility": _merge_sector_lists(
+        "Automobile & Auto Ancillary"
+    ),
+    "Pharma, Healthcare & Biotech": _merge_sector_lists(
+        "Pharmaceuticals & Biotech", "Healthcare, Pharma & Diagnostics"
+    ),
+    "Energy, Power & Utilities": _merge_sector_lists(
+        "Energy, Oil & Power", "Power, Renewable & Utilities"
+    ),
+    "Metals, Mining & Chemicals": _merge_sector_lists(
+        "Metal, Mining & Infra", "Chemicals & Fertilizers",
+        "Metals, Materials & Chemicals"
+    ),
+    "FMCG, Consumer & Retail": _merge_sector_lists(
+        "FMCG & Consumer Staples", "Consumer Durables & Retail",
+        "Consumer, Retail & Lifestyle"
+    ),
+    "Realty, Construction & Infrastructure": _merge_sector_lists(
+        "Realty & Infrastructure", "Realty, Construction & Infrastructure"
+    ),
+    "Industrial, Engineering & Capital Goods": _merge_sector_lists(
+        "Industrial, Engineering & Capital Goods"
+    ),
+    "Defence & Aerospace": _merge_sector_lists(
+        "Defence & Capital Goods", "Defence & Aerospace"
+    ),
+    "Railways, Transport & Logistics": _merge_sector_lists(
+        "Railways & Transportation"
+    ),
+}
 all_tickers = sorted(set(
     [t for sub in ALL_SECTOR_MAP.values() for t in sub]
     + NIFTY_50_TICKERS + FNO_STOCKS + MORE_NSE_TICKERS
@@ -913,12 +947,15 @@ else:
                                 <p style="font-size: 11px; color: #e2e8f0; margin: 0;">Stocks: {row['Total']} | 🟢 {row['Gainers']} 🔴 {row['Losers']}</p>
                             </div>
                             """, unsafe_allow_html=True)
-                            if st.button(f"Inspect {row['Sector']}", key=f"s_{row['Sector']}"):
+                            if st.button(f"Open {row['Sector']}", key=f"s_{row['Sector']}"):
                                 st.session_state.selected_sector_click = row['Sector']
+                                st.session_state.sector_open_requested = True
                                 st.rerun()
 
     # TAB 2: SECTOR STOCKS
     with tab2:
+        if st.session_state.pop("sector_open_requested", False):
+            st.success(f"Selected sector opened: {st.session_state.selected_sector_click}")
         sel_sec = st.selectbox("Select Sector", list(ALL_SECTOR_MAP.keys()), index=list(ALL_SECTOR_MAP.keys()).index(st.session_state.selected_sector_click))
         st.session_state.selected_sector_click = sel_sec
         clean_tks = [t.replace(".NS", "") for t in ALL_SECTOR_MAP[sel_sec]]
